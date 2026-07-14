@@ -244,7 +244,9 @@ print(result.to_dict())
 
 ## 效果展示
 
-![page_0001_heatmap](C:\Users\000000\Projects\python\pixel_diff\page_0001_heatmap.png)
+下面是文字残影热力图示例，红框和序号用于定位疑似差异区域：
+
+![文字残影热力图示例](doc/images/heatmap_example.png)
 
 ## 测试与检查
 
