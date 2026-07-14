@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pixel-diff"
+version = "0.1.0"
+description = "Pixel-level geometric difference detection between approved PDFs and scanned documents."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26",
+  "opencv-python>=4.9",
+  "PyMuPDF>=1.24",
+  "pypdfium2>=5.0",
+  "pywin32>=306; platform_system == 'Windows'",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "ruff>=0.5",
+  "mypy>=1.10",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src/pixel_diff"]
+
+[[tool.mypy.overrides]]
+module = ["cv2", "fitz", "numpy", "pypdfium2", "pythoncom", "win32com", "win32com.client", "yaml"]
+ignore_missing_imports = true

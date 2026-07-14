@@ -1,0 +1,36 @@
+dpi: 300
+filter_colored_marks: true
+sift_nfeatures: 10000
+lowe_ratio: 0.70
+min_good_matches: 15
+ransac_reprojection_threshold: 3.0
+crop_margin: 40
+min_diff_area: 200
+local_similarity_filter: true
+local_similarity_iou_threshold: 0.62
+local_similarity_padding: 8
+local_similarity_search_radius: 4
+horizontal_residual_min_aspect: 12.0
+horizontal_residual_max_height: 20
+short_horizontal_residual_min_aspect: 2.5
+short_horizontal_residual_max_height: 20
+short_horizontal_residual_min_iou: 0.55
+wide_text_residual_min_area: 5000
+wide_text_residual_min_aspect: 3.0
+wide_text_residual_min_iou: 0.30
+sparse_residual_max_area: 400
+sparse_residual_max_density: 0.04
+small_residual_max_area: 220
+small_residual_max_density: 0.12
+residual_filter_min_area: 200
+residual_density_padding: 40
+adaptive_block_size: 21
+adaptive_c: 10
+median_blur_kernel: 3
+min_noise_component_area: 12
+open_kernel: [3, 3]
+close_kernel: [3, 3]
+dilate_kernel: [15, 10]
+morph_iterations_open: 1
+morph_iterations_close: 1
+morph_iterations_dilate: 1

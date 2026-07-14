@@ -1,0 +1,13 @@
+.venv/
+.idea/
+.codex/
+.agents/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+artifacts/
+*.egg-info/
+page_*_heatmap.png
