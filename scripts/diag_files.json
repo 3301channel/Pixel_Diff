@@ -1,0 +1,346 @@
+{
+  "0": {
+    "regions": [
+      {
+        "id": 1,
+        "change_type": "added",
+        "x": 878,
+        "y": 820,
+        "w": 121,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 277,
+        "deleted": 43,
+        "template_text": "7:03:05 "
+      },
+      {
+        "id": 2,
+        "change_type": "added",
+        "x": 734,
+        "y": 1286,
+        "w": 89,
+        "h": 65,
+        "risk": "HIGH",
+        "added": 302,
+        "deleted": 19,
+        "template_text": "12 100 "
+      },
+      {
+        "id": 3,
+        "change_type": "added",
+        "x": 1426,
+        "y": 1402,
+        "w": 75,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 257,
+        "deleted": 5,
+        "template_text": "6.4 "
+      },
+      {
+        "id": 4,
+        "change_type": "added",
+        "x": 734,
+        "y": 1537,
+        "w": 66,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 198,
+        "deleted": 10,
+        "template_text": "21 "
+      },
+      {
+        "id": 5,
+        "change_type": "added",
+        "x": 734,
+        "y": 1664,
+        "w": 108,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 675,
+        "deleted": 34,
+        "template_text": "186 "
+      },
+      {
+        "id": 6,
+        "change_type": "added",
+        "x": 944,
+        "y": 1931,
+        "w": 66,
+        "h": 65,
+        "risk": "HIGH",
+        "added": 236,
+        "deleted": 29,
+        "template_text": "数量10 1,11"
+      },
+      {
+        "id": 7,
+        "change_type": "added",
+        "x": 944,
+        "y": 2132,
+        "w": 89,
+        "h": 65,
+        "risk": "HIGH",
+        "added": 264,
+        "deleted": 24,
+        "template_text": "12 100 "
+      },
+      {
+        "id": 8,
+        "change_type": "added",
+        "x": 944,
+        "y": 2511,
+        "w": 89,
+        "h": 65,
+        "risk": "HIGH",
+        "added": 302,
+        "deleted": 13,
+        "template_text": "186 "
+      }
+    ],
+    "annotations": []
+  },
+  "1": {
+    "regions": [
+      {
+        "id": 1,
+        "change_type": "added",
+        "x": 933,
+        "y": 820,
+        "w": 66,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 229,
+        "deleted": 7,
+        "template_text": "3:05 "
+      },
+      {
+        "id": 2,
+        "change_type": "added",
+        "x": 734,
+        "y": 1286,
+        "w": 139,
+        "h": 65,
+        "risk": "HIGH",
+        "added": 714,
+        "deleted": 14,
+        "template_text": "12 100 "
+      },
+      {
+        "id": 3,
+        "change_type": "added",
+        "x": 734,
+        "y": 1402,
+        "w": 114,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 498,
+        "deleted": 9,
+        "template_text": "32 "
+      },
+      {
+        "id": 4,
+        "change_type": "added",
+        "x": 1516,
+        "y": 2383,
+        "w": 99,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 389,
+        "deleted": 67,
+        "template_text": "2.36 "
+      },
+      {
+        "id": 5,
+        "change_type": "added",
+        "x": 807,
+        "y": 2979,
+        "w": 80,
+        "h": 49,
+        "risk": "MEDIUM",
+        "added": 923,
+        "deleted": 0,
+        "template_text": "清 "
+      }
+    ],
+    "annotations": []
+  },
+  "2": {
+    "regions": [
+      {
+        "id": 1,
+        "change_type": "added",
+        "x": 734,
+        "y": 1402,
+        "w": 66,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 280,
+        "deleted": 9,
+        "template_text": "32 "
+      },
+      {
+        "id": 2,
+        "change_type": "added",
+        "x": 734,
+        "y": 1537,
+        "w": 66,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 240,
+        "deleted": 10,
+        "template_text": "21 "
+      },
+      {
+        "id": 3,
+        "change_type": "added",
+        "x": 1426,
+        "y": 1537,
+        "w": 99,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 446,
+        "deleted": 28,
+        "template_text": "2.36 "
+      },
+      {
+        "id": 4,
+        "change_type": "added",
+        "x": 734,
+        "y": 1664,
+        "w": 89,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 371,
+        "deleted": 10,
+        "template_text": "186 "
+      },
+      {
+        "id": 5,
+        "change_type": "added",
+        "x": 944,
+        "y": 2248,
+        "w": 88,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 523,
+        "deleted": 6,
+        "template_text": "32 "
+      },
+      {
+        "id": 6,
+        "change_type": "added",
+        "x": 944,
+        "y": 2511,
+        "w": 131,
+        "h": 65,
+        "risk": "HIGH",
+        "added": 762,
+        "deleted": 10,
+        "template_text": "186 "
+      }
+    ],
+    "annotations": []
+  },
+  "3": {
+    "regions": [
+      {
+        "id": 1,
+        "change_type": "added",
+        "x": 734,
+        "y": 1084,
+        "w": 84,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 530,
+        "deleted": 2,
+        "template_text": "数量 10 11 "
+      },
+      {
+        "id": 2,
+        "change_type": "added",
+        "x": 1771,
+        "y": 1084,
+        "w": 89,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 401,
+        "deleted": 8,
+        "template_text": "金额 100 12.1 "
+      },
+      {
+        "id": 3,
+        "change_type": "added",
+        "x": 734,
+        "y": 1219,
+        "w": 66,
+        "h": 65,
+        "risk": "HIGH",
+        "added": 218,
+        "deleted": 6,
+        "template_text": "11 12 100 "
+      },
+      {
+        "id": 4,
+        "change_type": "added",
+        "x": 734,
+        "y": 1402,
+        "w": 66,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 284,
+        "deleted": 7,
+        "template_text": "32 "
+      },
+      {
+        "id": 5,
+        "change_type": "added",
+        "x": 944,
+        "y": 2248,
+        "w": 66,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 295,
+        "deleted": 5,
+        "template_text": "32 "
+      },
+      {
+        "id": 6,
+        "change_type": "added",
+        "x": 1516,
+        "y": 2248,
+        "w": 75,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 322,
+        "deleted": 6,
+        "template_text": "6.4 "
+      },
+      {
+        "id": 7,
+        "change_type": "added",
+        "x": 1516,
+        "y": 2383,
+        "w": 99,
+        "h": 66,
+        "risk": "HIGH",
+        "added": 458,
+        "deleted": 9,
+        "template_text": "2.36 "
+      },
+      {
+        "id": 8,
+        "change_type": "added",
+        "x": 1239,
+        "y": 2522,
+        "w": 133,
+        "h": 43,
+        "risk": "MEDIUM",
+        "added": 1292,
+        "deleted": 0,
+        "template_text": " "
+      }
+    ],
+    "annotations": []
+  }
+}

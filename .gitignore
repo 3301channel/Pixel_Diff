@@ -1,0 +1,32 @@
+# ── 虚拟环境 ──
+.venv/
+venv/
+env/
+
+# ── 打包/构建产物 ──
+dist/
+build/
+*.egg-info/
+
+# ── 运行时产物（任务缓存、报告、日志） ──
+artifacts/
+
+# ── IDE / 缓存 ──
+.idea/
+.vscode/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# ── 工作区记忆（本机私有的工作日志，不上传） ──
+.workbuddy/
+
+# ── 分析/调试输出 ──
+outputs/
+
+# ── 调试截图 ──
+viewer_a.png
+viewer_b.png

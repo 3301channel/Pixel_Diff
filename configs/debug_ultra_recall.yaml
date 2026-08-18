@@ -1,0 +1,267 @@
+# =============================================================================
+# sensitive_recall_trial — 高召回 + 全对齐链配置文件
+# =============================================================================
+# 适用场景：
+#   - 需要尽量少漏报的场景（宁可多报假阳性，也不能漏掉真实差异）
+#   - 文档质量不稳定、扫描变形大、需要全对齐链补偿的场景
+#   - 需要风险等级标记的输出（风险复核开启）
+#
+# 与 default.yaml 的主要区别：
+#   - 六层对齐链全部开启（default 只开 SURF）
+#   - 三级过滤路径A开启（default 只走路径B）
+#   - 风险复核开启（default 关闭）
+#   - 位移配对 + 变更分类开启
+#   - 敏感文本高召回双路掩码开启
+#
+# 性能：比 default 慢约 3-5 倍，仅在需要高精度输出时使用。
+# =============================================================================
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 第一阶段：对齐链配置（六层全开）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# --- 第3层：行质心对齐 ---
+line_centroid_alignment: true               # 总开关
+line_centroid_max_drift: 30                 # 允许的最大Y方向偏移（像素）
+line_centroid_consistency_filter: true      # 全局中位数一致性过滤，剔除离群偏移
+line_centroid_median_tolerance: 10          # 中位数容忍度（像素），超过中线+N的偏移被丢弃
+line_horizontal_alignment: true             # 横向IoU搜索：逐行±N像素平移取最佳IoU
+line_horizontal_max_shift: 12               # 横向搜索范围（像素）
+line_horizontal_band_half_height: 36        # 搜索条带半高（像素）
+line_horizontal_min_iou: 0.45               # 横向搜索的最低IoU门槛
+line_horizontal_min_improvement: 0.04       # 横向搜索的最低IoU提升门槛
+
+# --- 第4层：行仿射对齐（逐行 scale+shift） ---
+line_affine_alignment_enabled: true
+line_affine_window_width: 320               # 滑动窗口宽度（像素）
+line_affine_window_step: 180                # 滑动窗口步长（像素）
+line_affine_max_shift: 40                   # 允许的最大水平平移（像素）
+line_affine_min_anchors: 3                  # 最少锚点数，不足则跳过该行
+line_affine_min_anchor_iou: 0.10            # 每个锚点的最低IoU
+line_affine_min_improvement: 0.01           # 应用变换的最低IoU提升门槛
+line_affine_max_scale_delta: 0.04           # 允许的最大缩放偏差（|scale-1.0|）
+line_affine_band_half_height: 32            # 条带半高（像素）
+
+# --- 第5层：行分段对齐（非线性局部扭曲修正） ---
+line_piecewise_alignment_enabled: true
+line_piecewise_window_width: 96             # 分段窗口宽度（像素）
+line_piecewise_window_step: 48              # 分段窗口步长（像素）
+line_piecewise_max_shift: 30                # 允许的最大平移（像素）
+line_piecewise_min_anchor_similarity: 0.55  # 锚点最低IoU相似度
+line_piecewise_min_anchors: 4               # 最少锚点数
+line_piecewise_jump_threshold: 8            # 跳变检测阈值（相邻段偏移差>此值=跳变）
+line_piecewise_max_scale_delta: 0.15        # 允许的最大缩放偏差
+line_piecewise_protection_width: 24         # 跳变处保护区宽度（像素）
+line_piecewise_min_improvement: 0.02        # 最低IoU提升门槛
+
+# --- 刚性文字块对齐（配合行分段，保持块内相对位置不变） ---
+rigid_text_block_alignment_enabled: true    # 刚性文字块水平配准
+rigid_text_block_min_gap_width: 4           # 块间最小间距（像素），小于此值视为同一块
+rigid_text_block_max_internal_gap: 10       # 块内最大间隙（像素）
+rigid_text_block_min_anchor_similarity: 0.60 # 锚点最低IoU相似度
+rigid_text_block_min_iou_improvement: 0.01  # 最低IoU提升门槛
+
+# --- 残差行二次对齐（XOR后再修正差异密集行） ---
+# 这里故意关闭：高召回模式下假阳性可以后续过滤，不必在二次对齐上冒险修正
+residual_line_realignment_enabled: false
+residual_line_window_width: 64
+residual_line_window_step: 24
+residual_line_max_shift: 24
+residual_line_min_anchor_similarity: 0.50
+residual_line_min_anchors: 4
+residual_line_min_span: 240                # 差异行最小宽度，太窄不处理
+residual_line_min_components: 4             # 最小连通域数
+residual_line_jump_threshold: 7
+residual_line_protection_width: 24
+residual_line_max_scale_delta: 0.18
+residual_line_min_iou_improvement: 0.01     # 三重安全门控①：IoU必须提升
+residual_line_min_diff_reduction: 0.08      # 三重安全门控②：差异像素必须减少
+residual_line_min_protected_retention: 0.80 # 三重安全门控③：保护区差异保留率
+
+# --- 第6层：密集光流（残留微观变形补偿） ---
+local_warp_enabled: true
+local_warp_max_displacement: 5              # 最大位移幅度硬裁剪（像素）
+local_warp_scale: 0.35                      # 降采样比例（速度优化）
+local_warp_blur_kernel: 31                  # 光流前的高斯模糊核大小
+local_warp_gate_enabled: true               # 门控：前景IoU足够高时跳过整层
+local_warp_gate_min_iou: 0.985              # 门控阈值
+
+# --- 文本锚点对齐（第1层：PDF文本层驱动的逐行水平校正） ---
+pdf_text_anchor_alignment_enabled: true     # 文本锚点对齐
+pdf_text_anchor_min_equal_chars: 3          # 最少等长匹配字符数
+pdf_text_anchor_protection_padding: 10      # 保护区外扩（像素）
+pdf_text_anchor_max_shift: 80               # 允许的最大水平平移（像素）
+pdf_text_anchor_max_scale_delta: 0.08       # 允许的最大缩放偏差
+pdf_text_anchor_min_improvement: 0.02       # 最低IoU提升门槛
+pdf_text_anchor_ocr_fallback_enabled: false # OCR回退（纯图片扫描件时用OCR构建锚点）
+pdf_text_anchor_ocr_scale: 0.5              # OCR时图像缩放比
+pdf_text_anchor_ocr_min_confidence: 0.90    # OCR最小置信度
+pdf_text_anchor_ocr_max_before_iou: 0.10    # OCR回退触发：对齐前IoU必须低于此值
+pdf_text_anchor_ocr_max_page_iou: 0.035     # OCR回退触发：页面级IoU必须低于此值
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 第二阶段：全局配准优化
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# --- SURF特征配准加速 ---
+alignment_feature_downsample_enabled: true  # 降采样加速：0.5x缩小后再提取SURF特征
+alignment_feature_scale: 0.5                # 降采样比例（0.5 = 像素量降为25%）
+alignment_feature_fallback_enabled: true    # 降采样不达标时自动切回全分辨率
+alignment_feature_min_inlier_ratio: 0.6
+alignment_orientation_rotation: auto  # 横版页旋转方向：clockwise/counterclockwise/auto(配准+war差自动判断)
+
+# --- SIFT 特征点数量限制（OpenCV 5.0 无 SURF，回退 SIFT 时生效）---
+sift_nfeatures: 2000                        # 限制 SIFT 特征点，避免 5000+ 点 FLANN 匹配过慢
+
+# --- 空白页快速跳过 ---
+blank_page_alignment_enabled: true          # 墨迹极少时跳过配准，直接恒等变换
+blank_page_ink_threshold: 245               # 墨迹判定灰度阈值（<245=墨迹）
+blank_page_max_ink_ratio: 0.00001           # 最大墨迹比例，低于此值视为空白
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 第三阶段：差异检测与过滤（三级过滤路径A）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# --- 三级过滤总开关 ---
+multilevel_filter_enabled: false            # DEBUG：关闭路径A三级过滤
+local_similarity_filter: false              # DEBUG：关闭局部IoU相似度过滤
+ssim_filter_enabled: false                  # DEBUG：关闭SSIM过滤
+
+# --- PDF图片区域过滤 ---
+pdf_image_region_filter_enabled: true       # 仅保留PDF嵌入图片区域内的差异，过滤文字区噪声
+pdf_image_region_padding: 3                 # 图片区域外扩（像素）
+pdf_image_region_max_page_ratio: 0.80       # 图片占页面比例上限，超过则不标记（整页扫描图）
+
+# --- 预处理：孤立残差过滤 ---
+isolated_residual_filter_enabled: false     # DEBUG：关闭孤立噪声过滤
+
+# --- 第一级：七级IoU局部相似度过滤 ---
+# 对二值图做±4px平移搜索，IoU≥0.62判为配准残余假阳性
+local_similarity_vectorized_search_enabled: true  # 向量化加速（matchTemplate替代逐偏移循环）
+
+# --- 第二级：SSIM灰度结构相似度过滤（已在上方关闭，保留参数即可） ---
+# ssim_filter_enabled: false
+ssim_cached_template_stats_enabled: true    # 缓存模板区高斯统计量，避免重复GaussianBlur
+ssim_early_exit_enabled: true               # 搜索到≥阈值立即返回
+ssim_filter_search_radius: 2                # 搜索半径 4→2，搜索次数 81→25（约3倍加速）
+ssim_filter_padding: 10                     # 外扩 15→10，缩小SSIM计算区域
+
+# --- 第三级：文本注释（不过滤，仅加注释） ---
+# text_annotation_enabled 使用默认值 true，自动生效
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 第四阶段：敏感文本高召回（双路掩码策略）
+# ═══════════════════════════════════════════════════════════════════════════════
+# 目的：对包含数字/金额/英文的敏感文本区域，用更宽松的检测策略避免漏报。
+# 实现：并行维护两路掩码——
+#   - 检测掩码（严格）：受文本层掩码限制，用于正常差异检测
+#   - 召回掩码（宽松）：不受文本层掩码限制，对敏感文本区域低门槛检测
+#     检测掩码发现的差异 + 召回掩码独有的差异 → 合并输出
+
+sensitive_text_recall_enabled: true
+sensitive_text_recall_padding: 10           # 敏感区域外扩（像素）
+sensitive_text_recall_min_density: 0.015    # 最小前景密度，低于此值不触发召回
+sensitive_recall_similarity_filter_enabled: false  # 召回路径是否也做IoU过滤（默认关=不过滤）
+sensitive_recall_similarity_search_radius: 16      # 召回路径的平移搜索半径（像素）
+sensitive_recall_page_number_search_radius: 64     # 页码区域的搜索半径（像素）
+sensitive_recall_similarity_iou_threshold: 0.62    # 召回路径的IoU过滤阈值
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 第五阶段：差异框后处理
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# --- 差异框分类 ---
+difference_classification_enabled: true     # 将每个框标注以added/deleted/modified/displaced类型
+difference_direction_ratio_threshold: 0.80  # 方向判定：某方向前景占比>此值→判为该方向
+difference_classification_labels_enabled: true  # 是否在可视化图上用颜色区分分类
+
+# --- 像素级噪声过滤（DEBUG：极限召回，用于定位被过滤的小差异） ---
+min_diff_area: 1                                 # 提取 region 的最小连通域面积（像素²）—— 调低可识别小差异，但易引入纸张纹理噪点
+min_significant_pixel_change: 1                  # 增+删像素合计低于此值 AND 模板无文字 AND 非HIGH → 丢弃
+                                                # 有模板文字或 HIGH 风险等级的区域绝不会被过滤
+
+# --- 大范围修改判定为位移 ---
+# 当差异框又宽又扁且双向都有前景时，可能是内容被整体移动，重新分类为displaced
+large_modified_as_displaced_enabled: true
+large_modified_min_page_area_ratio: 0.003   # 最小面积占比（面积/页面总面积）
+large_modified_min_aspect_ratio: 6.0        # 最小宽高比（宽/高）
+large_modified_min_direction_balance: 0.60  # 双向前景平衡度：min(add,del)/max(add,del)
+
+# --- 位移配对 ---
+# 将"内容从A挪到B"的add+delete双残差合并为一个displaced区域
+displacement_pairing_enabled: true
+displacement_pairing_min_direction_ratio: 0.80  # 方向比：added/deleted占比判定方向
+displacement_pairing_min_similarity: 0.82       # 最低形状相似度（距离变换+笔画重合度）
+displacement_pairing_max_size_ratio: 1.80       # 最大尺寸比，差异太大不对配
+displacement_pairing_padding: 3                 # 配对搜索时的外扩像素
+
+# --- Patch导出（关闭：高召回模式不需要训练数据） ---
+patch_export_enabled: false
+patch_export_padding: 24
+
+# --- 形态学清理（DEBUG：极度保守，避免小追加字符被合并/删除） ---
+min_noise_component_area: 1       # 默认 12：小于此面积的连通域直接删除
+open_kernel: [1, 1]               # 默认 [3,3]：开运算核，1x1 等价于关闭
+close_kernel: [1, 1]              # 默认 [3,3]：闭运算核，1x1 等价于关闭
+dilate_kernel: [1, 1]             # 默认 [15,10]：膨胀核，决定多近的碎片会合并成同一个 region
+morph_iterations_open: 0          # 默认 1：开运算次数，0 关闭
+morph_iterations_close: 0         # 默认 1：闭运算次数，0 关闭
+morph_iterations_dilate: 0        # 默认 1：膨胀次数，0 关闭
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 第六阶段：风险复核（OCR关，靠笔画+SSIM+水印判定）
+# ═══════════════════════════════════════════════════════════════════════════════
+# 注意：risk_review_ocr_enabled=false，所以分级逻辑退化为：
+#   模板PDF文本层有字→至少MEDIUM（含数字/英文/符号→HIGH）
+#   然后靠笔画匹配+窄笔画+页码+水印检测把假阳性降回LOW
+
+risk_review_enabled: false                  # DEBUG：关闭风险复核
+risk_review_filter_low: false              # DEBUG：保留LOW级区域，不输出到最终报告
+risk_review_ocr_enabled: false             # OCR关闭：不调用RapidOCR读取扫描件文字
+risk_review_region_padding: 18             # 区域外扩像素（确保文字没被截断）
+risk_review_ocr_padding: 80               # OCR时的区域外扩（即使OCR关也保留此配置）
+
+# --- 笔画匹配降级 ---
+# 对双方文字相同但被OCR/配准误判的情况，用距离变换笔画重合度判定
+risk_review_stroke_match_enabled: true
+risk_review_stroke_match_tolerance: 5       # 距离变换搜索容忍度（像素）
+risk_review_stroke_match_min_coverage: 0.94 # 最小笔画重合度
+risk_review_stroke_match_min_area: 3000     # 最小区域面积（像素²）
+risk_review_stroke_match_max_area: 6500     # 最大区域面积（像素²）
+risk_review_stroke_match_padding: 12        # 裁剪外扩（像素）
+
+# --- 窄笔画噪声降级 ---
+# 小面积、模板有纯中文但OCR读不到的区域，检查是否是扫描噪声造成的细线伪影
+risk_review_narrow_stroke_enabled: true
+risk_review_narrow_stroke_max_area: 500     # 最大区域面积（像素²）
+risk_review_narrow_stroke_max_width: 20     # 最大区域宽度（像素）
+risk_review_narrow_stroke_max_height: 32    # 最大区域高度（像素）
+risk_review_narrow_stroke_min_coverage: 0.96 # 最小笔画重合度
+
+# --- 页码匹配降级 ---
+# 纯数字、在页面下半部居中、尺寸合理的区域，检查页码是否真的变了
+risk_review_page_number_match_enabled: true
+risk_review_page_number_bottom_ratio: 0.88  # 页面底部比例：Y坐标>此比例才判定为页码区
+risk_review_page_number_center_tolerance_ratio: 0.12  # 水平居中容忍度（相对页面宽度）
+risk_review_page_number_max_width: 120      # 页码最大宽度（像素）
+risk_review_page_number_max_height: 100     # 页码最大高度（像素）
+risk_review_page_number_shape_tolerance: 3  # 形状匹配缩放容忍度
+risk_review_page_number_min_coverage: 0.95  # 最小笔画重合度
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 第七阶段：可视化与输出
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# --- 残影对比图 ---
+ghost_match_tolerance: 5                    # 残影文字匹配容忍度（像素）
+ghost_region_boxes: true                    # 在残影图上标注差异框（box）
+
+# --- 多进程并行 ---
+report_parallel_workers: 8                  # 多页并发进程数，上限min(页数,此值,16)

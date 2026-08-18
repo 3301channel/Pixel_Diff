@@ -1,0 +1,734 @@
+{
+  "0": {
+    "regions": [
+      {
+        "id": 1,
+        "change_type": "modified",
+        "x": 556,
+        "y": 402,
+        "w": 119,
+        "h": 76,
+        "risk": "HIGH",
+        "added": 347,
+        "deleted": 280,
+        "template_text": "：TEST-2"
+      },
+      {
+        "id": 2,
+        "change_type": "modified",
+        "x": 689,
+        "y": 646,
+        "w": 104,
+        "h": 72,
+        "risk": "HIGH",
+        "added": 790,
+        "deleted": 561,
+        "template_text": "：华东示"
+      },
+      {
+        "id": 3,
+        "change_type": "modified",
+        "x": 689,
+        "y": 855,
+        "w": 104,
+        "h": 72,
+        "risk": "HIGH",
+        "added": 731,
+        "deleted": 795,
+        "template_text": "：远景数"
+      },
+      {
+        "id": 4,
+        "change_type": "modified",
+        "x": 566,
+        "y": 2070,
+        "w": 123,
+        "h": 76,
+        "risk": "HIGH",
+        "added": 133,
+        "deleted": 246,
+        "template_text": "自2026 年"
+      }
+    ],
+    "blue_xor": 21702,
+    "detected_box_area": 33368,
+    "annotations": [
+      {
+        "region_id": 1,
+        "bbox": [
+          696,
+          659,
+          91,
+          50
+        ],
+        "template_text": "：华东示",
+        "scan_text": "：某某示",
+        "is_identical": false
+      },
+      {
+        "region_id": 2,
+        "bbox": [
+          696,
+          869,
+          91,
+          49
+        ],
+        "template_text": "：远景数",
+        "scan_text": "：某某数",
+        "is_identical": false
+      }
+    ]
+  },
+  "1": {
+    "regions": [
+      {
+        "id": 1,
+        "change_type": "modified",
+        "x": 1237,
+        "y": 1577,
+        "w": 160,
+        "h": 76,
+        "risk": "HIGH",
+        "added": 142,
+        "deleted": 314,
+        "template_text": "0,000.00，"
+      },
+      {
+        "id": 2,
+        "change_type": "modified",
+        "x": 2157,
+        "y": 1579,
+        "w": 69,
+        "h": 72,
+        "risk": "MEDIUM",
+        "added": 412,
+        "deleted": 490,
+        "template_text": "节点"
+      },
+      {
+        "id": 3,
+        "change_type": "modified",
+        "x": 1272,
+        "y": 1622,
+        "w": 18,
+        "h": 14,
+        "risk": "HIGH",
+        "added": 14,
+        "deleted": 46,
+        "template_text": "000"
+      },
+      {
+        "id": 4,
+        "change_type": "modified",
+        "x": 212,
+        "y": 1673,
+        "w": 100,
+        "h": 72,
+        "risk": "MEDIUM",
+        "added": 379,
+        "deleted": 333,
+        "template_text": "向乙"
+      }
+    ],
+    "blue_xor": 41164,
+    "detected_box_area": 24580,
+    "annotations": [
+      {
+        "region_id": 1,
+        "bbox": [
+          2157,
+          1592,
+          66,
+          50
+        ],
+        "template_text": "节点",
+        "scan_text": "款节",
+        "is_identical": false
+      },
+      {
+        "region_id": 2,
+        "bbox": [
+          1272,
+          1597,
+          18,
+          13
+        ],
+        "template_text": "00",
+        "scan_text": "0",
+        "is_identical": false
+      },
+      {
+        "region_id": 3,
+        "bbox": [
+          1272,
+          1622,
+          18,
+          14
+        ],
+        "template_text": "00",
+        "scan_text": "0",
+        "is_identical": false
+      },
+      {
+        "region_id": 4,
+        "bbox": [
+          212,
+          1692,
+          86,
+          43
+        ],
+        "template_text": "向",
+        "scan_text": "点",
+        "is_identical": false
+      }
+    ]
+  },
+  "2": {
+    "regions": [],
+    "blue_xor": 13762,
+    "detected_box_area": 0,
+    "annotations": []
+  },
+  "3": {
+    "regions": [],
+    "blue_xor": 17415,
+    "detected_box_area": 0,
+    "annotations": []
+  },
+  "4": {
+    "regions": [],
+    "blue_xor": 16762,
+    "detected_box_area": 0,
+    "annotations": []
+  },
+  "5": {
+    "regions": [
+      {
+        "id": 1,
+        "change_type": "deleted",
+        "x": 360,
+        "y": 2644,
+        "w": 374,
+        "h": 59,
+        "risk": "MEDIUM",
+        "added": 0,
+        "deleted": 8687,
+        "template_text": "、附件及补充文件"
+      },
+      {
+        "id": 2,
+        "change_type": "deleted",
+        "x": 258,
+        "y": 2648,
+        "w": 56,
+        "h": 16,
+        "risk": "MEDIUM",
+        "added": 0,
+        "deleted": 294,
+        "template_text": "三、"
+      },
+      {
+        "id": 3,
+        "change_type": "deleted",
+        "x": 254,
+        "y": 2665,
+        "w": 81,
+        "h": 37,
+        "risk": "MEDIUM",
+        "added": 0,
+        "deleted": 768,
+        "template_text": "三、"
+      },
+      {
+        "id": 4,
+        "change_type": "displaced",
+        "x": 342,
+        "y": 2760,
+        "w": 598,
+        "h": 276,
+        "risk": "MEDIUM",
+        "added": 15332,
+        "deleted": 13892,
+        "template_text": ""
+      },
+      {
+        "id": 5,
+        "change_type": "deleted",
+        "x": 954,
+        "y": 2760,
+        "w": 287,
+        "h": 51,
+        "risk": "MEDIUM",
+        "added": 0,
+        "deleted": 3683,
+        "template_text": "、技术需求说明、"
+      },
+      {
+        "id": 6,
+        "change_type": "displaced",
+        "x": 1261,
+        "y": 2760,
+        "w": 201,
+        "h": 281,
+        "risk": "MEDIUM",
+        "added": 2506,
+        "deleted": 2539,
+        "template_text": ""
+      },
+      {
+        "id": 7,
+        "change_type": "deleted",
+        "x": 1479,
+        "y": 2760,
+        "w": 711,
+        "h": 51,
+        "risk": "MEDIUM",
+        "added": 0,
+        "deleted": 9215,
+        "template_text": "、报价文件以及双方后续确认的书面变"
+      },
+      {
+        "id": 8,
+        "change_type": "displaced",
+        "x": 252,
+        "y": 2840,
+        "w": 847,
+        "h": 101,
+        "risk": "MEDIUM",
+        "added": 8081,
+        "deleted": 8529,
+        "template_text": "更文件。附件与本合同具有同等法律效力。"
+      },
+      {
+        "id": 9,
+        "change_type": "added",
+        "x": 959,
+        "y": 2989,
+        "w": 287,
+        "h": 50,
+        "risk": "MEDIUM",
+        "added": 3748,
+        "deleted": 0,
+        "template_text": ""
+      },
+      {
+        "id": 10,
+        "change_type": "added",
+        "x": 1482,
+        "y": 2991,
+        "w": 703,
+        "h": 50,
+        "risk": "MEDIUM",
+        "added": 9286,
+        "deleted": 0,
+        "template_text": ""
+      },
+      {
+        "id": 11,
+        "change_type": "added",
+        "x": 258,
+        "y": 3079,
+        "w": 156,
+        "h": 50,
+        "risk": "MEDIUM",
+        "added": 1847,
+        "deleted": 0,
+        "template_text": ""
+      },
+      {
+        "id": 12,
+        "change_type": "added",
+        "x": 433,
+        "y": 3079,
+        "w": 639,
+        "h": 51,
+        "risk": "MEDIUM",
+        "added": 8601,
+        "deleted": 0,
+        "template_text": ""
+      }
+    ],
+    "blue_xor": 90150,
+    "detected_box_area": 473822,
+    "annotations": [
+      {
+        "region_id": 8,
+        "bbox": [
+          254,
+          2853,
+          814,
+          75
+        ],
+        "template_text": "更文件。附件与本合同具有同等法律效力。",
+        "scan_text": "三、附件及补充文件",
+        "is_identical": false
+      }
+    ]
+  },
+  "6": {
+    "regions": [
+      {
+        "id": 1,
+        "change_type": "modified",
+        "x": 556,
+        "y": 402,
+        "w": 119,
+        "h": 76,
+        "risk": "HIGH",
+        "added": 347,
+        "deleted": 280,
+        "template_text": "：TEST-2"
+      },
+      {
+        "id": 2,
+        "change_type": "modified",
+        "x": 689,
+        "y": 646,
+        "w": 104,
+        "h": 72,
+        "risk": "HIGH",
+        "added": 790,
+        "deleted": 561,
+        "template_text": "：华东示"
+      },
+      {
+        "id": 3,
+        "change_type": "modified",
+        "x": 689,
+        "y": 855,
+        "w": 104,
+        "h": 72,
+        "risk": "HIGH",
+        "added": 731,
+        "deleted": 795,
+        "template_text": "：远景数"
+      },
+      {
+        "id": 4,
+        "change_type": "modified",
+        "x": 566,
+        "y": 2070,
+        "w": 123,
+        "h": 76,
+        "risk": "HIGH",
+        "added": 133,
+        "deleted": 246,
+        "template_text": "自2026 年"
+      }
+    ],
+    "blue_xor": 21702,
+    "detected_box_area": 33368,
+    "annotations": [
+      {
+        "region_id": 1,
+        "bbox": [
+          696,
+          659,
+          91,
+          50
+        ],
+        "template_text": "：华东示",
+        "scan_text": "：某某示",
+        "is_identical": false
+      },
+      {
+        "region_id": 2,
+        "bbox": [
+          696,
+          869,
+          91,
+          49
+        ],
+        "template_text": "：远景数",
+        "scan_text": "：某某数",
+        "is_identical": false
+      }
+    ]
+  },
+  "7": {
+    "regions": [
+      {
+        "id": 1,
+        "change_type": "modified",
+        "x": 1237,
+        "y": 1577,
+        "w": 160,
+        "h": 76,
+        "risk": "HIGH",
+        "added": 142,
+        "deleted": 314,
+        "template_text": "0,000.00，"
+      },
+      {
+        "id": 2,
+        "change_type": "modified",
+        "x": 2157,
+        "y": 1579,
+        "w": 69,
+        "h": 72,
+        "risk": "MEDIUM",
+        "added": 412,
+        "deleted": 490,
+        "template_text": "节点"
+      },
+      {
+        "id": 3,
+        "change_type": "modified",
+        "x": 1272,
+        "y": 1622,
+        "w": 18,
+        "h": 14,
+        "risk": "HIGH",
+        "added": 14,
+        "deleted": 46,
+        "template_text": "000"
+      },
+      {
+        "id": 4,
+        "change_type": "modified",
+        "x": 212,
+        "y": 1673,
+        "w": 100,
+        "h": 72,
+        "risk": "MEDIUM",
+        "added": 379,
+        "deleted": 333,
+        "template_text": "向乙"
+      }
+    ],
+    "blue_xor": 41164,
+    "detected_box_area": 24580,
+    "annotations": [
+      {
+        "region_id": 1,
+        "bbox": [
+          2157,
+          1592,
+          66,
+          50
+        ],
+        "template_text": "节点",
+        "scan_text": "款节",
+        "is_identical": false
+      },
+      {
+        "region_id": 2,
+        "bbox": [
+          1272,
+          1597,
+          18,
+          13
+        ],
+        "template_text": "00",
+        "scan_text": "0",
+        "is_identical": false
+      },
+      {
+        "region_id": 3,
+        "bbox": [
+          1272,
+          1622,
+          18,
+          14
+        ],
+        "template_text": "00",
+        "scan_text": "0",
+        "is_identical": false
+      },
+      {
+        "region_id": 4,
+        "bbox": [
+          212,
+          1692,
+          86,
+          43
+        ],
+        "template_text": "向",
+        "scan_text": "点",
+        "is_identical": false
+      }
+    ]
+  },
+  "8": {
+    "regions": [],
+    "blue_xor": 13762,
+    "detected_box_area": 0,
+    "annotations": []
+  },
+  "9": {
+    "regions": [],
+    "blue_xor": 17415,
+    "detected_box_area": 0,
+    "annotations": []
+  },
+  "10": {
+    "regions": [],
+    "blue_xor": 16762,
+    "detected_box_area": 0,
+    "annotations": []
+  },
+  "11": {
+    "regions": [
+      {
+        "id": 1,
+        "change_type": "deleted",
+        "x": 360,
+        "y": 2644,
+        "w": 374,
+        "h": 59,
+        "risk": "MEDIUM",
+        "added": 0,
+        "deleted": 8687,
+        "template_text": "、附件及补充文件"
+      },
+      {
+        "id": 2,
+        "change_type": "deleted",
+        "x": 258,
+        "y": 2648,
+        "w": 56,
+        "h": 16,
+        "risk": "MEDIUM",
+        "added": 0,
+        "deleted": 294,
+        "template_text": "三、"
+      },
+      {
+        "id": 3,
+        "change_type": "deleted",
+        "x": 254,
+        "y": 2665,
+        "w": 81,
+        "h": 37,
+        "risk": "MEDIUM",
+        "added": 0,
+        "deleted": 768,
+        "template_text": "三、"
+      },
+      {
+        "id": 4,
+        "change_type": "displaced",
+        "x": 342,
+        "y": 2760,
+        "w": 598,
+        "h": 276,
+        "risk": "MEDIUM",
+        "added": 15332,
+        "deleted": 13892,
+        "template_text": ""
+      },
+      {
+        "id": 5,
+        "change_type": "deleted",
+        "x": 954,
+        "y": 2760,
+        "w": 287,
+        "h": 51,
+        "risk": "MEDIUM",
+        "added": 0,
+        "deleted": 3683,
+        "template_text": "、技术需求说明、"
+      },
+      {
+        "id": 6,
+        "change_type": "displaced",
+        "x": 1261,
+        "y": 2760,
+        "w": 201,
+        "h": 281,
+        "risk": "MEDIUM",
+        "added": 2506,
+        "deleted": 2539,
+        "template_text": ""
+      },
+      {
+        "id": 7,
+        "change_type": "deleted",
+        "x": 1479,
+        "y": 2760,
+        "w": 711,
+        "h": 51,
+        "risk": "MEDIUM",
+        "added": 0,
+        "deleted": 9215,
+        "template_text": "、报价文件以及双方后续确认的书面变"
+      },
+      {
+        "id": 8,
+        "change_type": "displaced",
+        "x": 252,
+        "y": 2840,
+        "w": 847,
+        "h": 101,
+        "risk": "MEDIUM",
+        "added": 8081,
+        "deleted": 8529,
+        "template_text": "更文件。附件与本合同具有同等法律效力。"
+      },
+      {
+        "id": 9,
+        "change_type": "added",
+        "x": 959,
+        "y": 2989,
+        "w": 287,
+        "h": 50,
+        "risk": "MEDIUM",
+        "added": 3748,
+        "deleted": 0,
+        "template_text": ""
+      },
+      {
+        "id": 10,
+        "change_type": "added",
+        "x": 1482,
+        "y": 2991,
+        "w": 703,
+        "h": 50,
+        "risk": "MEDIUM",
+        "added": 9286,
+        "deleted": 0,
+        "template_text": ""
+      },
+      {
+        "id": 11,
+        "change_type": "added",
+        "x": 258,
+        "y": 3079,
+        "w": 156,
+        "h": 50,
+        "risk": "MEDIUM",
+        "added": 1847,
+        "deleted": 0,
+        "template_text": ""
+      },
+      {
+        "id": 12,
+        "change_type": "added",
+        "x": 433,
+        "y": 3079,
+        "w": 639,
+        "h": 51,
+        "risk": "MEDIUM",
+        "added": 8601,
+        "deleted": 0,
+        "template_text": ""
+      }
+    ],
+    "blue_xor": 90150,
+    "detected_box_area": 473822,
+    "annotations": [
+      {
+        "region_id": 8,
+        "bbox": [
+          254,
+          2853,
+          814,
+          75
+        ],
+        "template_text": "更文件。附件与本合同具有同等法律效力。",
+        "scan_text": "三、附件及补充文件",
+        "is_identical": false
+      }
+    ]
+  }
+}
