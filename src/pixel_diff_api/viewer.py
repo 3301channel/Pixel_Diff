@@ -150,6 +150,21 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
       box-sizing: border-box;
       border-radius: 2px;
     }}
+    .highlight-box .highlight-label {{
+      position: absolute;
+      bottom: 100%;
+      left: -2px;
+      margin-bottom: 3px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.5;
+      color: #fff;
+      background: #e5484d;
+      white-space: nowrap;
+      pointer-events: none;
+    }}
     .difference-list {{ flex: 1 1 0; min-height: 0; max-height: 100%; overflow-x: hidden; overflow-y: auto; padding: 12px; }}
     .difference-card {{
       margin-bottom: 10px;
@@ -326,12 +341,6 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
         const isText = text(item.template_text).length > 0;
         const padX = isText ? 50 : 0;
         const padY = isText ? 30 : 0;
-        addDetail(
-          details,
-          "位置",
-          "(" + text(item.x) + ", " + text(item.y) + ")" +
-          (isText ? " " + text(item.width + padX) + "×" + text(item.height + padY) : "")
-        );
         addDetail(details, "原文", String(item.template_text || "").length > 40
           ? String(item.template_text).substring(0, 40) + "…"
           : text(item.template_text));
@@ -393,6 +402,12 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
           b.style.top = boxes[k].top;
           b.style.width = boxes[k].width;
           b.style.height = boxes[k].height;
+          // 高亮框上方标注差异序号 + 差异种类
+          const label = document.createElement("span");
+          label.className = "highlight-label";
+          label.textContent =
+            "#" + text(item.id) + " " + text(item.change_label, text(item.change_type, "差异"));
+          b.appendChild(label);
           layers[k].appendChild(b);
         }}
       }});
