@@ -22,7 +22,8 @@ import paramiko
 HOST = os.environ.get("PD_ALIYUN_HOST", "")
 USER = os.environ.get("PD_ALIYUN_USER", "root")
 PWD = os.environ.get("PD_ALIYUN_PWD", "")
-REMOTE_ROOT = "/home/Pixel_Diff_s"
+# 目标目录可用 PD_REMOTE_ROOT 覆盖（默认 /home/Pixel_Diff_s）
+REMOTE_ROOT = os.environ.get("PD_REMOTE_ROOT", "/home/Pixel_Diff_s")
 SRC_VENV = "/home/Pixel_Diff/.venv"
 LOCAL_ROOT = Path(__file__).resolve().parent
 
