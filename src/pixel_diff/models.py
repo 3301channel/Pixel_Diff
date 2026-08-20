@@ -340,6 +340,19 @@ class PixelDiffConfig:
     risk_review_watermark_template_dark_threshold: int = 210
     """Template grayscale threshold used to ensure the residual is on background."""
 
+    # ─── 未重叠字符形过滤：只保留字符形，横线/竖线/噪点降级为 LOW ───
+    risk_review_char_shape_filter_enabled: bool = True
+    """对 visual_difference_without_text 区域做字符形过滤（横线/竖线/噪点降级）。"""
+
+    risk_review_char_min_aspect_ratio: float = 0.2
+    """宽高比下限（width/height），低于此值视为竖线。"""
+
+    risk_review_char_max_aspect_ratio: float = 5.0
+    """宽高比上限（width/height），高于此值视为横线。"""
+
+    risk_review_char_min_area: float = 100.0
+    """包围盒面积下限，低于此值视为噪点。"""
+
     patch_export_enabled: bool = False
     """是否导出候选框 patch 数据，用于人工标注和神经网络训练。"""
 

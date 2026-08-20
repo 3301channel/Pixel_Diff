@@ -114,6 +114,11 @@ def apply_risk_review(
                 level = "LOW"
                 reason = "unchanged_page_number"
                 metrics["risk_review_page_number_filtered"] += 1
+            # 未重叠像素差异：只保留字符形，横线/竖线/噪点降级为 LOW
+            if level == "MEDIUM" and reason == "visual_difference_without_text":
+                if _is_line_or_speckle_residual(region, config):
+                    level = "LOW"
+                    reason = "line_or_speckle_residual"
         # 文本层差异区域最低保留 MEDIUM，避免被 risk_review_filter_low 误杀。
         if getattr(region, "text_layer_protected", False) and level == "LOW":
             level = "MEDIUM"
@@ -333,6 +338,32 @@ def _is_narrow_stroke_registration_residual(
     )
 
 
+def _is_line_or_speckle_residual(
+    region: DifferenceRegion,
+    config: PixelDiffConfig,
+) -> bool:
+    """判定「未重叠」像素差异是否为横线/竖线/噪点（而非字符）。
+
+    对 visual_difference_without_text 区域做形状过滤：
+    - 宽高比过大（width/height > max_aspect_ratio）→ 横线（表格线等）
+    - 宽高比过小（width/height < min_aspect_ratio）→ 竖线（表格线等）
+    - 包围盒面积过小（width*height < min_area）→ 噪点
+    命中即视为噪声，返回 True（调用方降级为 LOW 过滤掉）。
+    """
+    if not config.risk_review_char_shape_filter_enabled:
+        return False
+    if region.width <= 0 or region.height <= 0:
+        return True
+    if region.width * region.height < config.risk_review_char_min_area:
+        return True
+    aspect = region.width / region.height
+    if aspect > config.risk_review_char_max_aspect_ratio:
+        return True
+    if aspect < config.risk_review_char_min_aspect_ratio:
+        return True
+    return False
+
+
 def _stroke_match_coverage(
     region: DifferenceRegion,
     scan_gray: np.ndarray,
@@ -466,7 +497,8 @@ def _classify_risk(
             return "HIGH", "ocr_detected_sensitive_text_without_template_overlap", sensitive_type
         return "MEDIUM", "ocr_detected_text_without_template_overlap", None
 
-    return "LOW", "no_template_text_or_ocr_overlap", None
+    # 配准后既无模板文字重叠也无OCR重叠的像素差异，认定为差异（而非噪声），不再降级为LOW被过滤
+    return "MEDIUM", "visual_difference_without_text", None
 
 
 def _sensitive_type(text: str) -> str | None:
