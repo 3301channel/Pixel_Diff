@@ -18,7 +18,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from pixel_diff.alignment import align_scan_to_template_bgr
+from pixel_diff.alignment import align_scan_to_template_bgr, _is_homography_distorted
 from pixel_diff.binarization import binarize_scan_bgr, binarize_template_bgr
 from pixel_diff.change_classification import classify_difference_regions
 from pixel_diff.color_filter import remove_colored_marks_bgr
