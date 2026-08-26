@@ -18,22 +18,30 @@
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 第一阶段：对齐链配置（六层全开）
+# 第一阶段：对齐链配置（六层局部对齐全部关闭，仅保留全局单应配准）
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # --- 第3层：行质心对齐 ---
-line_centroid_alignment: true               # 总开关
+# 2026-08-21 晚间关闭全部局部对齐层：用户反馈配准后「表格歪七扭八、有的字还变形」。
+# 根因 = 局部对齐层对每个文本行/分段/像素施加非均匀变换（实测 05aa043c：行仿射剪切
+# 斜率 0.018→位移 35px、行分段平移 16px、密集光流 8px、行质心 Y 偏移 9px），把表格线
+# 折成阶梯、把字剪切变形，直接违反「配准后不变形、表格不变形」硬要求。
+# 实测关闭全部局部层后（仅保留 SIFT 全局单应）：扫描表格假阳性 75→17（4.4× 下降）、
+# 生产合同 self=0、70b95 手写签名仍检出（19）、05aa043c 合同 118→128（更保守，符合
+# 高召回定位）。全局单应对数字 PDF 已足够；局部层仅对照片级非线性变形有价值，但其
+# 变形+碎片化副作用大于收益，统一关闭。
+line_centroid_alignment: false             # 总开关
 line_centroid_max_drift: 30                 # 允许的最大Y方向偏移（像素）
 line_centroid_consistency_filter: true      # 全局中位数一致性过滤，剔除离群偏移
 line_centroid_median_tolerance: 10          # 中位数容忍度（像素），超过中线+N的偏移被丢弃
-line_horizontal_alignment: true             # 横向IoU搜索：逐行±N像素平移取最佳IoU
+line_horizontal_alignment: false            # 横向IoU搜索：逐行±N像素平移取最佳IoU（关闭：不变形要求）
 line_horizontal_max_shift: 12               # 横向搜索范围（像素）
 line_horizontal_band_half_height: 36        # 搜索条带半高（像素）
 line_horizontal_min_iou: 0.45               # 横向搜索的最低IoU门槛
 line_horizontal_min_improvement: 0.04       # 横向搜索的最低IoU提升门槛
 
 # --- 第4层：行仿射对齐（逐行 scale+shift） ---
-line_affine_alignment_enabled: true
+line_affine_alignment_enabled: false
 line_affine_window_width: 320               # 滑动窗口宽度（像素）
 line_affine_window_step: 180                # 滑动窗口步长（像素）
 line_affine_max_shift: 40                   # 允许的最大水平平移（像素）
@@ -44,7 +52,7 @@ line_affine_max_scale_delta: 0.04           # 允许的最大缩放偏差（|sca
 line_affine_band_half_height: 32            # 条带半高（像素）
 
 # --- 第5层：行分段对齐（非线性局部扭曲修正） ---
-line_piecewise_alignment_enabled: true
+line_piecewise_alignment_enabled: false
 line_piecewise_window_width: 96             # 分段窗口宽度（像素）
 line_piecewise_window_step: 48              # 分段窗口步长（像素）
 line_piecewise_max_shift: 30                # 允许的最大平移（像素）
@@ -56,7 +64,7 @@ line_piecewise_protection_width: 24         # 跳变处保护区宽度（像素�
 line_piecewise_min_improvement: 0.02        # 最低IoU提升门槛
 
 # --- 刚性文字块对齐（配合行分段，保持块内相对位置不变） ---
-rigid_text_block_alignment_enabled: true    # 刚性文字块水平配准
+rigid_text_block_alignment_enabled: false   # 刚性文字块水平配准（关闭：不变形要求）
 rigid_text_block_min_gap_width: 4           # 块间最小间距（像素），小于此值视为同一块
 rigid_text_block_max_internal_gap: 10       # 块内最大间隙（像素）
 rigid_text_block_min_anchor_similarity: 0.60 # 锚点最低IoU相似度
@@ -80,7 +88,7 @@ residual_line_min_diff_reduction: 0.08      # 三重安全门控②：差异像�
 residual_line_min_protected_retention: 0.80 # 三重安全门控③：保护区差异保留率
 
 # --- 第6层：密集光流（残留微观变形补偿） ---
-local_warp_enabled: true
+local_warp_enabled: false
 local_warp_max_displacement: 8              # 最大位移幅度硬裁剪（像素）。5→8：扫描件非线性变形常超5px，5会裁剪过狠导致数字/表格线配准残差假阳性（300.pdf vs 矢量件 22→9处）
 local_warp_scale: 0.35                      # 降采样比例（速度优化）
 local_warp_blur_kernel: 31                  # 光流前的高斯模糊核大小
@@ -88,7 +96,7 @@ local_warp_gate_enabled: true               # 门控：前景IoU足够高时跳�
 local_warp_gate_min_iou: 0.985              # 门控阈值
 
 # --- 文本锚点对齐（第1层：PDF文本层驱动的逐行水平校正） ---
-pdf_text_anchor_alignment_enabled: true     # 文本锚点对齐
+pdf_text_anchor_alignment_enabled: false    # 文本锚点对齐（关闭：不变形要求）
 pdf_text_anchor_min_equal_chars: 3          # 最少等长匹配字符数
 pdf_text_anchor_protection_padding: 10      # 保护区外扩（像素）
 pdf_text_anchor_max_shift: 80               # 允许的最大水平平移（像素）
@@ -113,7 +121,84 @@ alignment_feature_min_inlier_ratio: 0.6
 alignment_orientation_rotation: auto  # 横版页旋转方向：clockwise/counterclockwise/auto(配准+war差自动判断)
 
 # --- SIFT 特征点数量限制（OpenCV 5.0 无 SURF，回退 SIFT 时生效）---
-sift_nfeatures: 2000                        # 限制 SIFT 特征点，避免 5000+ 点 FLANN 匹配过慢
+# 2026-08-21 10000←2000：SURF 在 OpenCV 5.0 不可用后回退 SIFT，2000 个特征
+# 在合同 PDF（05aa043c）上仅得到 181 个好匹配（SURF 时代 1130），配准质量大幅退化
+# （inlier 0.72→0.33，区域数膨胀）。恢复 10000（models 默认）后 good 回到 1130，
+# 与 8/7 SURF 时代基线一致。FLANN 匹配耗时 ~3 秒/页，可接受。
+sift_nfeatures: 10000                       # 限制 SIFT 特征点，避免 5000+ 点 FLANN 匹配过慢
+
+# --- 全局配准是否强制相似变换（不变形） ---
+# 2026-08-21 显式 false：自由单应矩阵对合同 PDF 实测本就无变形
+# （sx=1.044/sy=1.034 各向比 1.0099，rot=0.059°，shear=0.104°，h31=h32=0），
+# 强制相似变换反而把 inlier 从 0.765 压到 0.437，漏掉大量真实匹配。
+# 保留 false 让 RANSAC 自己决定是否需要透视自由度。
+alignment_similarity_only: false
+
+# --- 全局配准 RANSAC 重投影阈值 ---
+# 2026-08-21 3.0←2.0：2.0 是为压制扫描表格"错实例配对"而收紧，但合同 PDF
+# （中英混排、行多、字符密度高）在 2.0 下丢掉过多合法匹配，inlier 0.72→0.43。
+# 恢复 3.0（models 默认，也是 8/7 SURF 时代基线值）。表格误报交给后续
+# IoU/SSIM/风险复核层处理，不再用阈值收紧牺牲合同类文档召回。
+ransac_reprojection_threshold: 3.0
+
+# --- 全局配准 RANSAC 实现方法 ---
+# 2026-08-21 显式 ransac：OpenCV 5.0 默认 usac_magsac 是 MAGSAC 变体，
+# 与 8/7 时代的 cv2.RANSAC 内点判定不同（同样 1130 好匹配下得到的单应矩阵
+# 不同，导致下游局部对齐行为漂移：行质心偏移 3px→9px）。固定 ransac
+# 后 inlier 逐页精确复现 8/7 基线（0.723/0.646/0.405/0.337/0.696）。
+homography_method: ransac
+
+# --- 「差异过大 / 疑似非同一文档」判定阈值（只看配准是否把图拉歪） ---
+# 2026-08-21 新增：用户要求「只有配准把图片拉歪时才判差异过大」。判定不再
+# 看内容差异率（diff_rate），而是看单应矩阵把图拉歪了多少（剪切/各向异性/
+# 旋转）与内点率。实测同文档 05aa043c 5 页：rot<0.3°、shear<1.2°、aniso≈1.01
+# → 不判；不同文档（表格 vs 签名图）：rot=91.8°、shear=-67.3°、aniso=4.04
+# → 判「配准异常（把图拉歪）」。阈值按需收紧/放松。
+alignment_max_shear_deg: 8.0             # 剪切角上限（度），超过=被拉成平行四边形
+alignment_max_anisotropy: 1.20           # 各向异性缩放比上限，超过=被拉伸变形
+alignment_max_rotation_deg: 15.0         # 配准残差旋转上限（度），超过=被整体拉斜
+alignment_min_valid_inlier_ratio: 0.05   # 有效配准最低内点率，低于=配准本质失败
+
+# --- 仿射配准回退（无透视时用仿射代替单应） ---
+# 2026-08-25 新增：扫描件 vs 电子版通常是「缩放+旋转+平移」的仿射关系、几乎无透视。
+# 8DOF 单应虽能拟合更多内点，但会引入不必要的透视项，使远离内点集中的区域（页面底部）
+# 产生额外错位。开启后：单应透视项 |h31|、|h32| 均 < 阈值时，用同一批匹配点重估
+# 仿射（6DOF）替代单应，使整页对齐更均匀（实测 c287fbb4 底部差异 1→0）。
+alignment_prefer_affine: true
+alignment_affine_perspective_threshold: 0.0001   # 无透视判定阈值（透视项绝对值上限）
+alignment_affine_min_size_ratio: 1.03            # 尺寸差异门槛：两图尺寸比>=此值才触发仿射回退
+
+# --- 配准时忽略表格横竖线（只认文字字形，默认关闭） ---
+# 2026-08-21 新增：表格横竖线是「长而重复」结构，SIFT 易在一条线的不同位置之间
+# 产生歧义匹配、带偏全局单应；文字字形区分度高。开启后配准特征提取前先把长横线/
+# 长竖线从灰度图 inpaint 成背景，SIFT 特征集中在文字上。表格极多而文字极少的表单
+# 可能特征不足，按需开启。
+alignment_ignore_table_lines: false
+alignment_table_line_min_length: 40      # 表格线最小长度（像素）
+alignment_table_line_ink_threshold: 180  # 墨迹灰度阈值（<阈值=墨迹）
+
+# --- 文字区/表格区分区配准 ---
+# 2026-08-24：扫描件正文(上)与表格(下)常有不同非线性形变，单一全局单应被特征更多的
+# 表格区主导，导致文字区整体错位（520deb7c 文字区残差15.91px/内点率0.000，表格区仅
+# 2.76px）。开启后：检测最上方一条长表格横线为分界，文字区/表格区各自用本区特征点估
+# 单应，分别 warp 后按分界羽化融合，两部分各自对齐、互不干扰。无表格线或某区特征不足
+# 时自动回退全局单应。实测 520deb7c：区域数 56→25。
+alignment_split_regions_enabled: true
+alignment_split_table_line_min_length: 80  # 分界横线最小长度（只认长横线，避免下划线误判）
+alignment_split_blend_band: 30             # 分界羽化过渡带宽度（像素）
+# 2026-08-25 新增：分区配准对「文字区」内点率的最低提升要求。分区只在「文字区被
+# 全局单应明显牺牲」时才有价值（520deb7c 文字区全局 0.000→分区 0.748、60f2fb/0dbf88
+# +0.041）；若文字区全局本就能对齐（分区提升不足此值），回退全局单应，避免表格区单应
+# 特征点不足把表格线配出模糊/重影（e1f84156 文字区分区 -0.004 无改善但表格线重影）。
+alignment_split_min_text_inlier_gain: 0.02
+
+# --- XOR 差异膨胀半径 ---
+# 2026-08-21 0←1：8/7 基线（SURF 时代）无膨胀概念（xor_difference 无参数），
+# 88 区域即无膨胀结果。1 是为保留 70b95 手写签名而设，但合同 PDF 在膨胀下
+# 区域从 88 增到 344（真实小差异被并进相邻区域后反而无法独立成区）。
+# 0 = 无膨胀，最贴近基线行为；扫描噪声交给下游 IoU/SSIM/风险复核过滤。
+# 若 70b95 签名出现漏检再单独评估。
+xor_dilate_radius: 0
 
 # --- 空白页快速跳过 ---
 blank_page_alignment_enabled: true          # 墨迹极少时跳过配准，直接恒等变换
@@ -129,10 +214,41 @@ blank_page_max_ink_ratio: 0.00001           # 最大墨迹比例，低于此值�
 multilevel_filter_enabled: true             # true=路径A（IoU+SSIM+文本注释），false=路径B（仅IoU）
 pdf_text_layer_filter: true                # PDF 文本层：抑制未变文字残差
 
+# --- 表格线差异屏蔽（后置，模板侧） ---
+# 模板有表格线、扫描件缺失表格线时视为版式差异，从差异掩码屏蔽。
+table_line_filter_enabled: true
+table_line_min_length: 40                   # 表格线最小长度（像素）
+
 # 追加/相邻字符吸收控制：supplemental 文本区域与像素区域合并时允许的最大间隙。
 # 0 = 仅当真实（重叠）相交才合并，防止 "何平"+"_P" 被合并成 "何平_P" 一个框、
 # 导致追加字符消失为独立区域。非 0 会重新允许吸收，按需调大。
 merge_region_expand_padding: 0
+
+# --- 差异区域重叠去重 ---
+# 2026-08-24：多个差异框彼此重叠时（典型：行级大框覆盖了字符级小框），
+# 保留面积较大者、舍弃面积较小者，使每个差异的覆盖面积尽量不重叠。
+# overlap_ratio = 交集面积 / 小框矩形面积，>= 此值即判定小框被大框覆盖、丢弃小框。
+region_dedup_enabled: true
+region_dedup_overlap_ratio: 0.5            # 小框 50% 以上被大框覆盖即丢弃；调小更激进、调大更保守
+
+# --- 扫描件渲染残差抑制 ---
+# 2026-08-24：针对无文本层的图片输入（jpg/png 扫描件），差异区域拿不到模板文本，
+# 「modified(增删方向平衡) + 平移搜索能部分重合字形」的区域几乎都是扫描渲染/轻微
+# 错位的假阳性（如 12e72ed2 的 11 个区域，IoU 0.30~0.61）。开启后这类区域被抑制，
+# 使"内容一致的扫描件"比对结果归零。对 PDF(有文本层)不生效；HIGH 风险不抑制。
+suppress_scan_render_residuals: true
+scan_render_suppress_min_iou: 0.3          # 平移 IoU >= 此值即视为字形可部分重合；调大更保守、调小更激进
+
+# --- 表格线错位大块抑制 ---
+# 2026-08-25 新增：扫描件表格区进纸不匀，表格线错位几个像素后 XOR 产生大量细长线残差，
+# 再被膨胀核粘连成一整片，形成覆盖整个表格区的巨大差异框（面积可达十几万像素）。
+# 这类大框内部差异主要由"细长线状残差"（表格线错位）构成，而非块状文字修改。
+# 判定：area>=min_area 且 线残差占比>=min_ratio 且 非HIGH → 抑制。
+# 实测：表格线错位大框线残差占比≈0.75，真实大面积文字修改大框≈0.00~0.17，阈值0.5零误删。
+suppress_table_line_residual_blocks: true
+table_line_residual_min_area: 1000         # 只处理面积>=此值的框（排除单个字符碎片；表格线错位差异面积通常数千）
+table_line_residual_min_ratio: 0.5         # 框内细长线残差占差异像素比例>=此值判为表格线错位主导
+table_line_residual_min_length: 40         # 判定"细长线残差"的最小线长（像素）
 
 # --- PDF图片区域过滤 ---
 pdf_image_region_filter_enabled: true       # 仅保留PDF嵌入图片区域内的差异，过滤文字区噪声
@@ -143,7 +259,13 @@ pdf_image_region_max_page_ratio: 0.80       # 图片占页面比例上限，超�
 isolated_residual_filter_enabled: true      # 删除面积小+前景密度低+离邻居远的孤立噪声
 
 # --- 第一级：七级IoU局部相似度过滤 ---
-# 对二值图做±4px平移搜索，IoU≥0.62判为配准残余假阳性
+# 对二值图做平移搜索，判断「字形平移后能否重合」；IoU≥阈值判为配准残余假阳性。
+# 2026-08-21：该过滤原来只在 multilevel_filter_enabled=false 时运行（被闲置）；
+# 现改为始终执行（engine 里 multilevel 之后追加），并覆盖「未对齐但实际可对齐的
+# 汉字」场景。搜索半径 4→12：实测错位量级 8~12px，4px 太小几乎不起作用。
+local_similarity_filter: true                # 局部相似度过滤总开关（始终执行）
+local_similarity_search_radius: 12           # 平移搜索半径 4→12（覆盖更大错位）
+local_similarity_iou_threshold: 0.62         # 最佳平移 IoU≥此值判为配准残余
 local_similarity_vectorized_search_enabled: true  # 向量化加速（matchTemplate替代逐偏移循环）
 
 # --- 第二级：SSIM灰度结构相似度过滤 ---

@@ -46,6 +46,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from pixel_diff import (  # noqa: E402
+    AlignmentError,
     ConfigurationError,
     InputError,
     PixelDiffConfig,
@@ -604,6 +605,15 @@ def _append_path(lines: list[str], label: str, path: Path | None) -> None:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
+    except AlignmentError:
+        # 配准失败（特征点为空/不足、好匹配不足、单应性失败等）统一映射为
+        # 中文「文档不一致」文案，避免把英文技术异常透传给 API 调用方。
+        # 与 task_service 里 alignment_distorted / inlier / warp_iou 的判定文案风格一致。
+        print(
+            "两份文档无法配准（特征匹配不足或对齐失败），疑似非同一文档",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
     except PixelDiffError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc

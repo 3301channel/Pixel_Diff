@@ -24,30 +24,83 @@ TaskStatus = Literal["pending", "running", "completed", "failed"]
 
 logger = logging.getLogger("pixel_diff_api")
 
-# 快速预检阈值：缩放后像素差异过大 → 两份文档几乎完全不同
-_QUICK_CHECK_SIZE = (256, 256)
-_QUICK_CHECK_THRESHOLD = 0.20  # 20% 的像素差异 > 60 灰度值 → 判定为两份不同文档
-
-# 内存缓存 TTL：已完成/失败的任务在内存中保留 1 小时后自动移除
-_STALE_TASK_TTL = timedelta(hours=1)
+# 快速预检：仅在两图特征完全无法配准时才判定为「两份文档几乎完全不同」。
+# 注意：不能用原始像素差——像素差在配准前会因尺寸/旋转/偏移不同而被放大，
+# 导致「同一文档的不同尺寸/方向版本」被误判为差异过大。改用对齐不变的特征匹配。
+_QUICK_CHECK_MAX_DIM = 512  # 降采样长边，加速预检
+_QUICK_CHECK_MIN_MATCHES = 25  # 低于此匹配数视为无法配准
+_QUICK_CHECK_MIN_INLIER_RATIO = 0.05  # RANSAC 内点率低于此值视为无法配准
 
 
 def _quick_mismatch_check(candidate_path: Path, template_path: Path) -> bool:
-    """缩放至 256×256 后比较像素差异，判断两份文件是否几乎完全不同。
+    """对齐不变的快速预检：仅当两图特征完全无法配准时判定为不同文档。
 
-    目的：在全量配准+比对之前快速短路，节省时间。
-    策略：将两图 resize 到极小尺寸 → 计算绝对差 → 统计差异超阈值的像素比例。
-    对于白底黑字的文档，不同文档的文本布局差异在 256×256 下即可充分暴露。
+    目的：在全量配准+比对之前快速短路「明显无关」的文件，节省时间。
+    策略：对两张灰度图降采样后提取 ORB 特征 → 暴力匹配 → RANSAC 估计单应性。
+    ORB 特征匹配对平移/旋转/缩放/光照不敏感，因此「同一文档的扫描版 vs 电子版、
+    不同尺寸、轻微旋转」仍能匹配成功，不会被误判；只有两图内容毫不相干时，
+    特征几乎无对应点或内点率极低，才判定为不同文档。
     """
     tmpl = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
     cand = cv2.imread(str(candidate_path), cv2.IMREAD_GRAYSCALE)
     if tmpl is None or cand is None:
+        # 非图像（如 PDF）→ 跳过预检，交给完整配准流程判定
         return False
-    tmpl_s = cv2.resize(tmpl, _QUICK_CHECK_SIZE)
-    cand_s = cv2.resize(cand, _QUICK_CHECK_SIZE)
-    diff = np.abs(tmpl_s.astype(np.float32) - cand_s.astype(np.float32))
-    significant = float((diff > 60).mean())
-    return significant > _QUICK_CHECK_THRESHOLD
+
+    def _downscale(img: np.ndarray) -> np.ndarray:
+        h, w = img.shape[:2]
+        if max(h, w) <= _QUICK_CHECK_MAX_DIM:
+            return img
+        scale = _QUICK_CHECK_MAX_DIM / max(h, w)
+        return cv2.resize(
+            img, (max(1, int(round(w * scale))), max(1, int(round(h * scale)))),
+            interpolation=cv2.INTER_AREA,
+        )
+
+    tmpl_s = _downscale(tmpl)
+    cand_s = _downscale(cand)
+
+    orb = cv2.ORB_create(nfeatures=1000)
+    kp1, des1 = orb.detectAndCompute(tmpl_s, None)
+    kp2, des2 = orb.detectAndCompute(cand_s, None)
+    if des1 is None or des2 is None or len(des1) < 20 or len(des2) < 20:
+        return False  # 特征不足无法判定，交给完整流程
+
+    matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    try:
+        matches = matcher.match(des1, des2)
+    except cv2.error:
+        return False
+    if len(matches) < _QUICK_CHECK_MIN_MATCHES:
+        return True  # 几乎无对应点 → 不同文档
+
+    pts1 = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+    pts2 = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+    homography, inlier_mask = cv2.findHomography(pts1, pts2, cv2.RANSAC, 5.0)
+    if homography is None:
+        return True  # 无法估计单应性 → 配准不可能 → 不同文档
+    inliers = int(inlier_mask.sum()) if inlier_mask is not None else 0
+    inlier_ratio = inliers / max(1, len(matches))
+    return inlier_ratio < _QUICK_CHECK_MIN_INLIER_RATIO
+
+
+def _extract_document_mismatch_message(stderr: str) -> str:
+    """从 stderr 里提取「文档不一致」中文文案行（含「疑似非同一文档」的那一行）。
+
+    配准失败（AlignmentError）时 compare.py 会把统一的中文文案打印到 stderr，
+    但日志（INFO compare start …）也混在 stderr 里。此函数只取中文文案那一行，
+    避免把日志一起塞进 task.error，保证「特征匹配失败」与「配准后判定失败」
+    两条路径返回同样干净的中文「文档不一致」提示。
+    """
+    for line in (stderr or "").splitlines():
+        stripped = line.strip()
+        if "疑似非同一文档" in stripped or "无法配准" in stripped:
+            return stripped
+    return ""
+
+
+# 内存缓存 TTL：已完成/失败的任务在内存中保留 1 小时后自动移除
+_STALE_TASK_TTL = timedelta(hours=1)
 
 
 def _map_status(s: TaskStatus) -> str:
@@ -332,7 +385,12 @@ class TaskManager:
                 len(completed.stdout or ""), len(completed.stderr or ""),
             )
             if completed.returncode != 0:
-                message = completed.stderr.strip() or completed.stdout.strip()
+                message = _extract_document_mismatch_message(completed.stderr or "")
+                if not message:
+                    message = (
+                        (completed.stderr or "").strip()
+                        or (completed.stdout or "").strip()
+                    )
                 raise RuntimeError(message[-4000:] or "comparison process failed")
             result_files = sorted(report_root.rglob("diff_result.json"))
             if len(result_files) != 1:
@@ -343,9 +401,6 @@ class TaskManager:
             task.result_json = str(result_path)
             task.difference_count = int(payload.get("total_regions", 0))
             task.total_pages = int(payload.get("total_pages", 0))
-            # 两份文档几乎完全不同 → 短路为 failed，
-            # 避免把"配准乱掉"的灾难视图渲染给用户。
-            diff_rate = float(payload.get("difference_rate") or 0)
             # 报告模式下指标在 pages[0]，单页模式在顶层 metrics
             pages = payload.get("pages") or []
             page0 = pages[0] if isinstance(pages, list) and pages else {}
@@ -354,29 +409,42 @@ class TaskManager:
                 or (payload.get("metrics") or {}).get("inlier_ratio")
                 or 1.0
             )
+            # local_warp 关闭时 local_warp_gate_foreground_iou 从未计算、恒为 0.0，
+            # 不能作为"对齐后前景重合度"信号；仅当 local_warp 实际开启时才参与判定。
+            local_warp_enabled = int(page0.get("local_warp_enabled", 0) or 0)
             warp_iou = float(page0.get("local_warp_gate_foreground_iou", 1.0))
+            if not local_warp_enabled:
+                warp_iou = 1.0
+            # 配准是否把图像拉歪/配准失败（顶层由 report 汇总，兜底再逐页判断）
+            alignment_distorted = bool(payload.get("alignment_distorted")) or any(
+                bool(p.get("alignment_distorted")) for p in pages
+            )
 
-            # 条件 1：差异率 > 50%（大面积差异）
-            # 条件 2：RANSAC 内点率 < 5%（配准本质失败）
-            # 条件 3：局配形变 IoU < 5%（对齐后前景完全不重合）
-            # force=True 时跳过短路，低相似度也强制生成可视化结果
+            # 仅当「配准把图拉歪 / 配准失败」时才判定为差异过大，避免把"配准乱掉"
+            # 的灾难视图渲染给用户。纯内容差异（改字、加行）且配准干净时不触发。
+            #  条件 1：配准变形超标（剪切/拉伸/旋转）→ 配准把图拉歪
+            #  条件 2：RANSAC 内点率 < 5% → 特征匹配失败、配准本质失败
+            #  条件 3：局配形变 IoU < 5% → 对齐后前景完全不重合
+            # force=True 时跳过短路，低配准质量也强制生成可视化结果
             if (
                 not force
-                and (diff_rate > 0.5 or inlier_ratio < 0.05 or warp_iou < 0.05)
+                and (alignment_distorted or inlier_ratio < 0.05 or warp_iou < 0.05)
             ):
-                similarity = (1.0 - diff_rate) * 100
                 task.status = "failed"
-                if diff_rate > 0.5:
-                    reason = f"两份文档相似度过低（相似率 {similarity:.1f}%，疑似非同一文档）"
+                if alignment_distorted:
+                    reason = (
+                        "两份文档配准异常（配准将图像拉斜/拉伸变形，"
+                        "剪切或缩放超阈值），疑似非同一文档"
+                    )
                 elif warp_iou < 0.05:
                     reason = "两份文档配准失败（对齐后前景重合度极低），疑似非同一文档"
                 else:
                     reason = f"两份文档特征匹配失败（内点率 {inlier_ratio:.1%}），疑似非同一文档"
                 task.error = f"{reason}，未生成可视化比对结果"
                 logger.warning(
-                    "task run document mismatch task_id=%s diff_rate=%.3f "
-                    "inlier=%.4f warp_iou=%.4f sim=%.1f%%",
-                    task_id, diff_rate, inlier_ratio, warp_iou, similarity,
+                    "task run document mismatch task_id=%s inlier=%.4f "
+                    "warp_iou=%.4f distorted=%s",
+                    task_id, inlier_ratio, warp_iou, alignment_distorted,
                 )
             else:
                 task.status = "completed"

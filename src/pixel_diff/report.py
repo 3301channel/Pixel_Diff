@@ -89,6 +89,10 @@ def build_document_report_payload(
                 "inlier_ratio": result.metrics.get("inlier_ratio"),
                 "feature_detector": result.metrics.get("feature_detector"),
                 "feature_detector_fallback": result.metrics.get("feature_detector_fallback"),
+                "alignment_rotation_deg": result.metrics.get("alignment_rotation_deg"),
+                "alignment_shear_deg": result.metrics.get("alignment_shear_deg"),
+                "alignment_anisotropy": result.metrics.get("alignment_anisotropy"),
+                "alignment_distorted": result.metrics.get("alignment_distorted"),
                 "alignment_feature_downsampled": result.metrics.get(
                     "alignment_feature_downsampled"
                 ),
@@ -244,6 +248,12 @@ def build_document_report_payload(
             "completed"
             if all(result.status == "completed" for result in sorted_results)
             else "partial"
+        ),
+        "alignment_distorted": int(
+            any(
+                bool(p.get("alignment_distorted"))
+                for p in pages
+            )
         ),
         "total_pages": len(sorted_results),
         "total_regions": len(regions),

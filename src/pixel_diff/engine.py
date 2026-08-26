@@ -39,7 +39,13 @@ from pixel_diff.logging_setup import setup_logging
 from pixel_diff.models import PixelDiffConfig, PixelDiffResult
 from pixel_diff.morphology import prepare_difference_masks
 from pixel_diff.patch_export import export_region_patches
-from pixel_diff.regions import extract_regions, filter_locally_similar_regions
+from pixel_diff.regions import (
+    extract_regions,
+    filter_locally_similar_regions,
+    suppress_scan_render_residuals,
+    suppress_table_line_residual_blocks,
+)
+from pixel_diff.region_utils import deduplicate_overlapping_regions
 from pixel_diff.residual_line_alignment import realign_residual_text_lines_bgr
 from pixel_diff.risk_review import apply_risk_review
 from pixel_diff.text_anchor_alignment import (
@@ -416,8 +422,12 @@ class PixelDiffEngine:
         logger.debug("stage binarization %dms", binary_ms)
 
         # ── 阶段4：差异检测 ──
-        # 4a. XOR 异或：暴露所有像素级差异
-        diff = xor_difference(scan_binary, template_binary)
+        # 4a. XOR 异或：暴露所有像素级差异。
+        #    可选膨胀半径：先对两幅二值图做同样膨胀再异或，吸收扫描模糊/
+        #    抗锯齿/轻微配准错位造成的亚像素边缘假阳性。
+        diff = xor_difference(
+            scan_binary, template_binary, dilate_radius=self.config.xor_dilate_radius
+        )
         residual_alignment = realign_residual_text_lines_bgr(
             aligned_bgr,
             template_bgr,
@@ -440,6 +450,13 @@ class PixelDiffEngine:
         )
         if image_keep_mask is not None:
             diff = cv2.bitwise_and(diff, image_keep_mask)
+        # 4a2. 表格线差异屏蔽：模板有表格线、扫描件无表格线 → 版式差异，不算内容修改
+        diff = mask_missing_table_lines(
+            diff,
+            scan_binary,
+            template_binary,
+            self.config,
+        )
         # 4b. 边缘裁剪：抑制扫描仪边框伪影（40px）
         diff = crop_edges(diff, self.config.crop_margin)
         # 4c. 形态学清理：去噪 + 碎片合并
@@ -488,14 +505,15 @@ class PixelDiffEngine:
             filter_metrics = filter_result.metrics
             if filter_result.annotations:
                 metadata["text_annotations"] = filter_result.annotations
-        else:
-            # 5b. 局部相似性过滤：7 级策略剔除配准残余假阳性
-            regions = filter_locally_similar_regions(
-                regions,
-                scan_binary=scan_binary,
-                template_binary=template_binary,
-                config=self.config,
-            )
+        # 5b. 局部相似性过滤（7 级策略）：对二值图做 ±N 像素平移搜索，
+        #     判断字形平移后能否重合，剔除「未对齐但实际可对齐」的汉字/笔画残差。
+        #     该过滤独立于 multilevel 路径，始终执行（受 local_similarity_filter 开关控制）。
+        regions = filter_locally_similar_regions(
+            regions,
+            scan_binary=scan_binary,
+            template_binary=template_binary,
+            config=self.config,
+        )
         text_regions = extract_text_difference_regions(
             scan_path=scan_path,
             template_path=template_path,
@@ -573,6 +591,20 @@ class PixelDiffEngine:
             template_binary,
             self.config,
         )
+        # 扫描件渲染残差抑制：无文本层 + modified(方向平衡) + 平移可对齐 → 假阳性
+        regions = suppress_scan_render_residuals(
+            regions,
+            scan_binary,
+            template_binary,
+            self.config,
+        )
+        # 表格线错位大块抑制：大框 + 线残差主导 + 非高风险 → 假阳性
+        regions = suppress_table_line_residual_blocks(
+            regions,
+            scan_binary,
+            template_binary,
+            self.config,
+        )
         # 移除像素变化量不足的渲染噪声假阳性
         # 双重保险：只有同时满足 (变化小 + 模板无文字 + 非高风险) 才丢弃
         if self.config.min_significant_pixel_change > 0:
@@ -597,6 +629,19 @@ class PixelDiffEngine:
             "risk_review regions=%d displacement_pairs=%d elapsed_ms=%d metrics=%s",
             len(regions), displacement_pairs, risk_ms, risk_metrics,
         )
+
+        # 重叠去重：多个差异框彼此重叠时，保留面积较大者、舍弃较小者，
+        # 使每个差异的覆盖面积尽量不重叠（行级大框与字符级小框重叠的典型场景）。
+        if self.config.region_dedup_enabled:
+            before_dedup = len(regions)
+            regions = deduplicate_overlapping_regions(
+                regions, self.config.region_dedup_overlap_ratio
+            )
+            if len(regions) < before_dedup:
+                logger.info(
+                    "dedup overlapping regions %d->%d (overlap_ratio=%.2f)",
+                    before_dedup, len(regions), self.config.region_dedup_overlap_ratio,
+                )
 
         # ── 阶段6：可视化输出 ──
         visual_path: str | None = None
@@ -655,6 +700,26 @@ class PixelDiffEngine:
                 "inlier_ratio": alignment.inlier_ratio,
                 "feature_detector": alignment.detector,
                 "feature_detector_fallback": int(alignment.detector_fallback),
+                "alignment_rotation_deg": (
+                    alignment.distortion.rotation_deg
+                    if alignment.distortion is not None
+                    else None
+                ),
+                "alignment_shear_deg": (
+                    alignment.distortion.shear_deg
+                    if alignment.distortion is not None
+                    else None
+                ),
+                "alignment_anisotropy": (
+                    alignment.distortion.anisotropy
+                    if alignment.distortion is not None
+                    else None
+                ),
+                "alignment_distorted": int(
+                    _is_homography_distorted(
+                        alignment.distortion, alignment.inlier_ratio, self.config
+                    )
+                ),
                 "text_anchor_checked_lines": text_anchor_alignment.checked_lines,
                 "text_anchor_applied_lines": text_anchor_alignment.applied_lines,
                 "text_anchor_count": text_anchor_alignment.anchors,

@@ -28,7 +28,7 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>文档差异查看器</title>
+  <title>Pixel_Diff</title>
   <style>
     :root {{
       color-scheme: light;
@@ -46,6 +46,8 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
       background: var(--background);
       color: #1f2937;
       font: 14px/1.5 "Microsoft YaHei", "PingFang SC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }}
     header {{
       min-height: 78px;
@@ -55,6 +57,7 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
       padding: 0 20px;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
     }}
     header h1 {{ margin: 0; font-size: 19px; }}
     .meta {{ color: var(--muted); white-space: nowrap; }}
@@ -62,10 +65,11 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
       min-width: 150px;
       padding: 7px 12px;
       border: 2px solid currentColor;
-      border-radius: 9px;
+      border-radius: 10px;
       background: #f8fafc;
       line-height: 1.15;
       text-align: center;
+      box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
     }}
     .similarity-value {{ display: block; font-size: 27px; font-weight: 800; }}
     .similarity-label {{ display: block; margin-top: 2px; font-size: 12px; font-weight: 700; }}
@@ -83,12 +87,13 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
     button, select {{
       min-height: 34px;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 8px;
       background: #fff;
       padding: 5px 11px;
       cursor: pointer;
+      transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
     }}
-    button:hover {{ border-color: var(--primary); color: var(--primary); }}
+    button:hover {{ border-color: var(--primary); color: var(--primary); box-shadow: 0 1px 3px rgba(16, 24, 40, 0.08); }}
     button:disabled {{ cursor: not-allowed; opacity: .45; }}
     main {{
       height: calc(100vh - 78px);
@@ -120,14 +125,23 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
       overflow: auto;
       padding: 14px;
       background: #eef1f5;
+      cursor: grab;
+      user-select: none;
+    }}
+    .document-scroll.dragging {{
+      cursor: grabbing;
+      user-select: none;
     }}
     .document-scroll img {{
       display: block;
       width: 100%;
       height: auto;
       background: white;
-      box-shadow: 0 2px 10px rgb(16 24 40 / 12%);
+      border-radius: 4px;
+      box-shadow: 0 2px 12px rgb(16 24 40 / 10%);
       transform-origin: top left;
+      -webkit-user-drag: none;
+      user-drag: none;
     }}
     .image-stage {{
       position: relative;
@@ -170,9 +184,14 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
       margin-bottom: 10px;
       border: 1px solid var(--border);
       border-left: 4px solid var(--danger);
-      border-radius: 6px;
+      border-radius: 8px;
       padding: 10px 12px;
       background: #fff;
+      transition: box-shadow 0.15s ease, transform 0.15s ease;
+    }}
+    .difference-card:hover {{
+      box-shadow: 0 3px 12px rgb(16 24 40 / 10%);
+      transform: translateY(-1px);
     }}
     .difference-card.high {{ border-left-color: #e5484d; }}
     .difference-card.medium {{ border-left-color: #f59e0b; }}
@@ -217,7 +236,7 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
 </head>
 <body>
   <header>
-    <h1>文档差异查看器</h1>
+    <h1>Pixel_Diff</h1>
     <span class="meta">任务：{html.escape(task.task_id)}</span>
     <span class="meta">差异：{difference_count}</span>
     <span class="meta">耗时：{elapsed_display}</span>
@@ -336,16 +355,13 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
           badge
         );
         const details = document.createElement("dl");
-        // 文字 region（template_text 非空）向右下扩展，吸收签名行尾部追加字符等
-        // 配准后被吸收到文字 region 内、但实际差异像素超出 OCR 框的小区域。
-        const isText = text(item.template_text).length > 0;
-        const padX = isText ? 50 : 0;
-        const padY = isText ? 30 : 0;
+        // 悬停高亮框直接使用差异区域 bbox（与残影图上的标注框大小一致），
+        // 不再额外向右下扩展，使高亮区域更精准、更贴合实际差异像素。
         addDetail(details, "原文", String(item.template_text || "").length > 40
           ? String(item.template_text).substring(0, 40) + "…"
           : text(item.template_text));
         card.append(title, details);
-        card.addEventListener("mouseenter", () => showHighlight(item, padX, padY));
+        card.addEventListener("mouseenter", () => showHighlight(item));
         card.addEventListener("mouseleave", () => {{
           hoveringId = null;
           clearHighlight();
@@ -462,6 +478,37 @@ def render_compare_viewer(task: CompareTask, payload: dict[str, object]) -> str:
         requestAnimationFrame(() => {{ syncingScroll = false; }});
       }});
     }}
+
+    // 拖动平移：缩放后无需借助滚动条，按住鼠标左键拖动即可平移查看图片。
+    function enableDragPan(container) {{
+      let isDragging = false;
+      let startX = 0;
+      let startY = 0;
+      let startLeft = 0;
+      let startTop = 0;
+      container.addEventListener("mousedown", (event) => {{
+        if (event.button !== 0) return;
+        isDragging = true;
+        startX = event.clientX;
+        startY = event.clientY;
+        startLeft = container.scrollLeft;
+        startTop = container.scrollTop;
+        container.classList.add("dragging");
+        event.preventDefault();
+      }});
+      window.addEventListener("mousemove", (event) => {{
+        if (!isDragging) return;
+        container.scrollLeft = startLeft - (event.clientX - startX);
+        container.scrollTop = startTop - (event.clientY - startY);
+      }});
+      window.addEventListener("mouseup", () => {{
+        if (!isDragging) return;
+        isDragging = false;
+        container.classList.remove("dragging");
+      }});
+    }}
+    enableDragPan(templateScroll);
+    enableDragPan(comparisonScroll);
 
     document.getElementById("previous-page").addEventListener("click", () => {{
       currentPage = Math.max(1, currentPage - 1);
@@ -583,7 +630,7 @@ def render_loading_viewer(task: CompareTask) -> str:
     return (
         '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>文档差异查看器 - 比对中</title><style>'
+        '<title>Pixel_Diff - 比对中</title><style>'
         + _CSS_LOADING + '</style></head><body>' + body
         + ('<script>' + script + '</script>' if script else '')
         + '</body></html>'
@@ -615,7 +662,8 @@ _CSS_VIEWER_COMMON = (
     "body{margin:0;min-width:1080px;background:var(--background);"
     "color:#1f2937;font:14px/1.5 \"Microsoft YaHei\",\"PingFang SC\",sans-serif;}"
     "header{min-height:78px;display:flex;align-items:center;gap:18px;"
-    "padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border);}"
+    "padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border);"
+    "box-shadow:0 1px 3px rgba(16,24,40,0.06);}"
     "header h1{margin:0;font-size:19px;}"
     ".meta{color:var(--muted);white-space:nowrap;}"
     ".mismatch-card{min-width:200px;padding:7px 12px;"
@@ -631,7 +679,7 @@ _CSS_VIEWER_COMMON = (
     "padding:0 14px;border-bottom:1px solid var(--border);font-weight:600;}"
     ".document-scroll{flex:1;overflow:auto;padding:14px;background:#eef1f5;}"
     ".document-scroll img{display:block;width:100%;height:auto;"
-    "background:white;box-shadow:0 2px 10px rgb(16 24 40 / 12%);}"
+    "background:white;border-radius:4px;box-shadow:0 2px 12px rgb(16 24 40 / 10%);}"
     ".info-panel{flex:1;overflow:auto;padding:16px;}"
     ".info-card{border:2px solid #fecaca;border-radius:8px;"
     "padding:16px;background:#fff5f3;}"
@@ -658,10 +706,10 @@ def render_failed_viewer(task: CompareTask, base_path: str = "") -> str:
     return (
         '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>文档差异查看器 — 文档不一致</title><style>'
+        '<title>Pixel_Diff — 文档不一致</title><style>'
         + _CSS_VIEWER_COMMON + '</style></head><body>'
         '<header>'
-        '<h1>文档差异查看器</h1>'
+        '<h1>Pixel_Diff</h1>'
         f'<span class="meta">任务：{html.escape(task.task_id)}</span>'
         '<div class="mismatch-card">'
         '<strong class="mismatch-value">文档不一致</strong>'

@@ -171,6 +171,148 @@ def filter_locally_similar_regions(
     return renumber_regions(kept)
 
 
+def suppress_scan_render_residuals(
+    regions: list[DifferenceRegion],
+    scan_binary: np.ndarray,
+    template_binary: np.ndarray,
+    config: PixelDiffConfig,
+) -> list[DifferenceRegion]:
+    """抑制「扫描件渲染残差」假阳性。
+
+    针对无 PDF 文本层的图片输入（jpg/png 扫描件），差异区域取不到模板文本
+    （``template_text`` 为空），无法通过文本比对确认是否真修改。这类输入下，
+    「双向 modified（增删方向平衡）+ 平移搜索能部分重合字形」的小区域，几乎都是
+    扫描渲染/轻微错位造成的假阳性，而非真实增删。
+
+    同时满足以下条件才抑制（移除）：
+    1. ``change_type == "modified"``（增删方向平衡，非单边新增/删除）；
+    2. ``template_text`` 为空（无文本层证据，即 jpg/png 输入）；
+    3. 平移搜索最佳 IoU ≥ ``config.scan_render_suppress_min_iou``（字形部分重合）；
+    4. ``risk_level != "HIGH"``（高风险不抑制，保守兜底）。
+
+    对 PDF（有文本层，差异区域能取到 ``template_text``）不生效。
+    """
+    if not config.suppress_scan_render_residuals or not regions:
+        return renumber_regions(regions)
+    if scan_binary.shape != template_binary.shape:
+        return renumber_regions(regions)
+
+    scan_foreground = (scan_binary == 0).astype(np.uint8)
+    template_foreground = (template_binary == 0).astype(np.uint8)
+    iou_search = (
+        _best_local_iou_vectorized
+        if config.local_similarity_vectorized_search_enabled
+        else _best_local_iou
+    )
+
+    kept: list[DifferenceRegion] = []
+    suppressed = 0
+    for region in regions:
+        if (
+            region.change_type == "modified"
+            and not region.template_text
+            and region.risk_level != "HIGH"
+        ):
+            local_iou = iou_search(
+                region,
+                scan_foreground,
+                template_foreground,
+                padding=config.local_similarity_padding,
+                search_radius=config.local_similarity_search_radius,
+            )
+            if local_iou >= config.scan_render_suppress_min_iou:
+                suppressed += 1
+                continue
+        kept.append(region)
+
+    if suppressed:
+        import logging
+
+        logging.getLogger(__name__).info(
+            "suppressed %d scan-render residual regions (min_iou=%.2f)",
+            suppressed, config.scan_render_suppress_min_iou,
+        )
+    return renumber_regions(kept)
+
+
+def suppress_table_line_residual_blocks(
+    regions: list[DifferenceRegion],
+    scan_binary: np.ndarray,
+    template_binary: np.ndarray,
+    config: PixelDiffConfig,
+) -> list[DifferenceRegion]:
+    """抑制「表格线错位主导的大块假阳性」。
+
+    扫描件的表格区存在进纸不匀的非线性形变，表格横线/竖线错位几个像素后，XOR
+    差异在表格区内产生大量细长线状残差，再被膨胀核粘连成一整片，形成覆盖整个
+    表格区的巨大差异框。这类大框的内部差异主要由「细长线状残差」（表格线错位）
+    构成，而非块状文字修改，应整体移除。
+
+    判定（同时满足才移除）：
+    1. ``change_type == "modified"``（双向增删，即错位；单边 added/deleted 是
+       真实增删一条线，不抑制）；
+    2. ``area >= config.table_line_residual_min_area``（只处理足够大的框）；
+    3. 框内细长线残差占差异像素的比例 >= ``config.table_line_residual_min_ratio``
+       （表格线错位主导）；
+    4. ``risk_level != "HIGH"``（高风险不抑制，保守兜底）。
+
+    区分依据（实测）：表格线错位大框线残差占比 ≈ 0.66~0.75，真实大面积文字修改
+    （整段替换/位移）大框线残差占比仅 0.00~0.17，阈值 0.5 可干净区分、零误删。
+    """
+    if not config.suppress_table_line_residual_blocks or not regions:
+        return renumber_regions(regions)
+    if scan_binary.shape != template_binary.shape:
+        return renumber_regions(regions)
+
+    # XOR 差异掩码（0=相同，255=差异）
+    xor = cv2.bitwise_xor(scan_binary, template_binary)
+    min_len = int(config.table_line_residual_min_length)
+    if min_len <= 0:
+        return renumber_regions(regions)
+    horiz_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (min_len, 1))
+    vert_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, min_len))
+
+    kept: list[DifferenceRegion] = []
+    suppressed = 0
+    for region in regions:
+        # 仅抑制「双向 modified」的错位块；单边 added/deleted（真实增删一条线）不抑制。
+        # 表格线错位 = 原位置删 + 新位置加（双向）；删除/新增一条线 = 单边真实修改。
+        if (
+            region.area < config.table_line_residual_min_area
+            or region.risk_level == "HIGH"
+            or region.change_type != "modified"
+        ):
+            kept.append(region)
+            continue
+
+        y0, y1 = max(0, region.y), min(xor.shape[0], region.y + region.height)
+        x0, x1 = max(0, region.x), min(xor.shape[1], region.x + region.width)
+        block = xor[y0:y1, x0:x1]
+        total = int(np.count_nonzero(block))
+        if total <= 0:
+            kept.append(region)
+            continue
+
+        fg = (block > 0).astype(np.uint8)
+        horiz = cv2.morphologyEx(fg, cv2.MORPH_OPEN, horiz_kernel)
+        vert = cv2.morphologyEx(fg, cv2.MORPH_OPEN, vert_kernel)
+        line_px = int(np.count_nonzero(cv2.bitwise_or(horiz, vert)))
+        ratio = line_px / total
+        if ratio >= config.table_line_residual_min_ratio:
+            suppressed += 1
+            continue
+        kept.append(region)
+
+    if suppressed:
+        import logging
+
+        logging.getLogger(__name__).info(
+            "suppressed %d table-line residual blocks (min_ratio=%.2f)",
+            suppressed, config.table_line_residual_min_ratio,
+        )
+    return renumber_regions(kept)
+
+
 def _best_local_iou(
     region: DifferenceRegion,
     scan_foreground: np.ndarray,

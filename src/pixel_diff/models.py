@@ -81,6 +81,132 @@ class PixelDiffConfig:
     ransac_reprojection_threshold: float = 3.0
     """RANSAC 重投影误差阈值（像素），判定内点/外点的距离上限。"""
 
+    homography_method: str = "usac_magsac"
+    """findHomography 估计方法：'ransac' / 'usac_magsac' / 'usac_default' /
+    'usac_accurate' / 'usac_fast'。USAC_MAGSAC 对扫描噪声产生的误匹配
+    更鲁棒，在低内点率场景（扫描件 vs 电子模板）能提高单应性精度。"""
+
+    ecc_refinement_enabled: bool = False
+    """全局单应性配准后是否用 ECC（增强相关系数）做亚像素级精修。
+
+    默认关闭。实测（扫描件 vs 电子模板，A4 200dpi）：ECC 会让配准变差——
+    模板墨迹到最近扫描墨迹的中位残差从 0.95px 恶化到 1.91px，且二次重采样
+    使扫描件二值化前景从 13.0 万涨到 15.2 万（模糊 → 自适应阈值多判前景）。
+    原因是残余误差属于非刚性局部形变（扫描仪进纸不匀），单一全局欧氏变换
+    无法拟合，只会把原本对齐好的区域一起拉偏；这类形变已由下游的
+    line/piecewise/local_warp 阶段处理。仅在明确需要全局刚性微调时开启。"""
+
+    ecc_motion_type: str = "euclidean"
+    """ECC 运动模型：'translation' / 'euclidean' / 'affine' / 'homography'。
+    亚像素偏移修正用 euclidean（平移+旋转）即可，过大自由度易过拟合。"""
+
+    ecc_max_iterations: int = 100
+    """ECC 最大迭代次数。"""
+
+    ecc_epsilon: float = 1e-5
+    """ECC 收敛阈值（相关系数增量下限）。"""
+
+    alignment_similarity_only: bool = True
+    """配准是否强制为「相似变换」（等比缩放 + 旋转 + 平移，2×3 自由度）。
+
+    默认开启。开启后底层用 cv2.estimateAffinePartial2D 估计单应性，矩阵被
+    约束为统一缩放因子（x/y 缩放相等）且无错切、无透视，因此**表格、文字
+    行列等几何结构绝不会变形**——只会整体等比缩放/旋转/平移。代价是：当两图
+    存在真正的非刚性畸变（扫描进纸不匀、镜头透视）时，相似变换无法拟合，会留
+    下残余偏移；这类残余由下游 line/piecewise/local_warp 阶段继续修正。
+
+    关闭则回退到自由 8 自由度单应矩阵（cv2.findHomography），可拟合透视/错切，
+    但可能引入表格变形，仅在对齐质量严重不足的兜底场景使用。"""
+
+    # --- 配准「把图拉歪」判定阈值 ---
+    # 用途：仅当单应矩阵把图像拉歪（剪切/各向异性拉伸/大残差旋转）或内点率过低
+    # （配准本质失败）时，才判定为「文档差异过大 / 疑似非同一文档」。
+    # 纯内容差异（改字、加行）且配准干净时，不应触发该判定。
+    alignment_max_shear_deg: float = 8.0
+    """单应矩阵剪切角上限（度）。超过视为被拉歪（平行四边形变形）。"""
+
+    alignment_max_anisotropy: float = 1.20
+    """各向异性缩放比上限（sx/sy，>=1）。超过视为被横向/纵向拉伸变形。"""
+
+    alignment_max_rotation_deg: float = 15.0
+    """配准残差旋转上限（度）。超过视为图像被整体拉斜（配准未纠正对齐）。"""
+
+    alignment_min_valid_inlier_ratio: float = 0.05
+    """有效配准的最低内点率。低于此值视为特征匹配失败、配准本质失败。"""
+
+    # --- 仿射配准回退（无透视时用仿射代替单应） ---
+    alignment_prefer_affine: bool = False
+    """配准单应的透视项接近 0（无透视）时，是否改用仿射（6DOF）配准。
+
+    扫描件与电子版之间的几何关系通常是「缩放 + 旋转 + 平移」（仿射），几乎
+    无透视。此时 8DOF 单应虽能拟合更多内点，但会引入不必要的透视项，使远离
+    内点集中的区域（如页面底部）产生额外错位。改用仿射（6DOF）可消除该误差，
+    使整页对齐更均匀（实测 c287fbb4 底部差异 1→0）。
+
+    默认关闭（可回滚）。开启后：单应估计完成后检查 h31/h32（透视项），若
+    |h31|、|h32| 均小于 alignment_affine_perspective_threshold（无透视），
+    则用同一批匹配点重估仿射矩阵替代单应。"""
+
+    alignment_affine_perspective_threshold: float = 1e-4
+    """判定「无透视」的透视项绝对值上限。|h31|、|h32| 均小于此值视为无透视，
+    触发仿射回退。"""
+
+    alignment_affine_min_size_ratio: float = 1.03
+    """仿射回退的最小尺寸差异比（>=1）。
+
+    仿射回退针对「缩放+平移」的扫描件（如 c287fbb4 尺寸比 1.06）。若两图尺寸
+    几乎相同（如 e1f84156 尺寸比 1.0004），并非缩放关系，用仿射反而因内点率低
+    而配不准（实测 XOR 168902 vs 单应 132747），此时不应触发仿射回退。仅当两图
+    宽或高的尺寸比 >= 此值时（明显缩放）才启用仿射。"""
+
+    # --- 配准时忽略表格横竖线（只认文字） ---
+    alignment_ignore_table_lines: bool = False
+    """配准特征提取前是否擦除表格横竖线，仅保留文字字形。
+
+    表格横竖线是「长而重复」的结构，SIFT 容易在一条线的不同位置之间产生
+    歧义匹配，干扰全局单应估计；文字字形区分度高得多。开启后把长横线/长竖线
+    从灰度图 inpaint 成背景，SIFT 特征集中在文字上，配准更稳。
+
+    默认关闭。代价：表格极多而文字极少的表单可能因特征不足而退化，按需开启。"""
+
+    alignment_table_line_min_length: int = 40
+    """表格线最小长度（像素）。长于此值的连续墨迹横/竖段才被视为表格线。"""
+
+    alignment_table_line_ink_threshold: int = 180
+    """擦除表格线时的墨迹灰度阈值（<阈值=墨迹）。"""
+
+    # --- 文字区/表格区分区配准 ---
+    alignment_split_regions_enabled: bool = False
+    """是否按「文字区 / 表格区」分区独立配准（各自估单应，互不干扰）。
+
+    扫描件中，正文文字与下方表格常有不同的非线性形变（进纸不匀、表格区拉伸），
+    单一全局单应只能「折中」拟合，常被特征点更多的表格区主导，导致文字区（上半）
+    完全没对齐（实测 520deb7c 文字区残差 15.91px、内点率 0.000，而表格区仅 2.76px）。
+    开启后：检测表格横线的起始 y 作为分界，文字区与表格区各自用本区特征点估单应，
+    分别 warp 后按分界羽化融合，使两部分各自对齐、互不干扰。
+
+    默认关闭（可回滚）。仅在检测到明确的长表格线、且两区特征点都足够时才启用，
+    否则自动回退全局单应。"""
+
+    alignment_split_table_line_min_length: int = 80
+    """分区配准检测「表格分界横线」的最小长度（像素）。
+
+    只认长横线（≥此值）作为文字区/表格区的分界，避免正文里的下划线/短横线
+    被误当成分界。"""
+
+    alignment_split_blend_band: int = 30
+    """分区配准在分界处的羽化过渡带宽度（像素）。两个单应在分界 ±band 范围内
+    逐行线性混合，避免硬切导致边界处文字断裂/错位。"""
+
+    alignment_split_min_text_inlier_gain: float = 0.02
+    """分区配准对「文字区」内点率的最低提升要求。
+
+    分区配准只在「文字区被全局单应明显牺牲」时才有价值（如 520deb7c 文字区
+    全局内点率 0.000、分区后 0.748；60f2fb/0dbf88 +0.041）。若文字区用全局单应
+    本就能对齐（分区仅能把文字区内点率提升不足此值），则说明分区无必要，回退
+    全局单应，避免表格区单应因特征点不足（内点率低）而把表格线配出模糊/重影
+    （实测 e1f84156 文字区分区 -0.004 无改善，但表格区单应导致表格线重影）。"""
+
     alignment_feature_downsample_enabled: bool = False
     """Estimate feature homography on reduced images before one full-resolution warp."""
 
@@ -92,6 +218,56 @@ class PixelDiffConfig:
 
     alignment_feature_min_inlier_ratio: float = 0.8
     """Minimum reduced-attempt RANSAC inlier ratio before accepting its homography."""
+
+    alignment_normalize_enabled: bool = True
+    """配准前做几何归一化：检测两图内容边界框→裁剪白边→各向异性缩放到统一
+    目标尺寸，消除边距/尺寸/宽高比差异后再提取特征配准。归一化只用于估算
+    单应性，最终 warp 仍在原始坐标进行，不影响下游差异坐标。"""
+
+    alignment_normalize_target_size: KernelSize = (1200, 2000)
+    """归一化目标尺寸 (宽, 高)。两图内容框被各向异性缩放到此统一矩形。"""
+
+    alignment_normalize_ink_threshold: int = 150
+    """内容边界框的墨迹灰度阈值：灰度低于此值视为内容像素。
+    不能设太高（如 200），否则扫描件的浅灰背景噪声会被误判为内容，
+    导致内容框撑满整页、归一化失效。"""
+
+    alignment_normalize_max_aspect_delta: float = 1.5
+    """两图内容框宽高比差异超过此倍数时，跳过归一化（避免极端各向异性
+    拉伸破坏特征），回退到原图配准。"""
+
+    alignment_normalize_min_size_ratio: float = 1.5
+    """两图内容框宽或高差异超过此倍数时才启用归一化。尺寸差异很小时
+    （如 3%），SIFT 尺度不变性已能处理，归一化的各向异性拉伸反而引入
+    误差导致配准变差，故跳过。"""
+
+    scan_border_strip_enabled: bool = True
+    """配准前剥离扫描件外围的扫描仪边框条（暗灰色纸缘阴影 / 压板边缘）。
+
+    扫描件常比电子模板高/宽出几十像素，多出的部分是扫描仪边框条而非纸面
+    内容（实测：1660×2410 的扫描件底部 2362~2410 行为 18px 暗条 + 噪声，
+    左侧 0~8 列为暗条）。这些强梯度长条会吸引大量 SIFT 特征点，把单应性
+    往错误方向拽。剥掉后再估单应性，模板墨迹到最近扫描墨迹的中位残差
+    从 1.91px 降到 0.95px，前景 IoU 从 0.119 提升到 0.225。
+
+    剥离只作用于「估计单应性时使用的图像」，裁剪平移量会合成进最终单应性
+    矩阵，最终仍对原始扫描件做一次 warpPerspective 到模板坐标系，
+    因此所有差异框坐标始终在模板原始坐标系中，不受影响。"""
+
+    scan_border_max_ratio: float = 0.06
+    """边框条搜索范围：只在图像外围此比例内（各边独立）向内搜索边框条，
+    避免把页面内部的表格线/页眉分隔线误当成边框剥掉。"""
+
+    scan_border_gray_low: int = 60
+    """边框条灰度下界。低于此值是真正的黑色墨迹（正文），不属于边框。"""
+
+    scan_border_gray_high: int = 205
+    """边框条灰度上界。高于此值是纸面白底，不属于边框。
+    扫描边框条/纸缘阴影落在 [gray_low, gray_high] 这段中灰区间内。"""
+
+    scan_border_line_ratio: float = 0.35
+    """判定为边框条的阈值：该行/列落在中灰区间内的像素占比超过此值即视为
+    边框条并剥离。正文文本行的中灰占比很低（墨迹黑、纸面白），不会误判。"""
 
     alignment_orientation_rotation: str = "clockwise"
     """横版页旋转方向：'clockwise' 顺时针 / 'counterclockwise' 逆时针 / 'auto' 自动。
@@ -108,6 +284,19 @@ class PixelDiffConfig:
     crop_margin: int = 40
     """边缘裁剪宽度（像素），抑制扫描仪边框伪影。"""
 
+    table_line_filter_enabled: bool = True
+    """表格线差异过滤：模板有表格线、扫描件对应位置无表格线时，
+    视为版式差异（表格线在扫描/重渲染中丢失），从差异掩码中屏蔽。"""
+
+    table_line_min_length: int = 40
+    """判定为表格线的最小长度（像素）。小于此长度的线段视为文字笔画，
+    不参与表格线差异过滤。"""
+
+    table_line_missing_ratio: float = 0.2
+    """扫描件表格线总量占模板表格线总量的比例阈值。低于此值时判定
+    扫描件整体缺失表格线（如打印/扫描褪色、转 PDF 丢失矢量线），
+    屏蔽模板所有表格线位置的差异。"""
+
     min_diff_area: float = 200.0
     """差异区域最小面积（像素），面积不足的不计入结果。"""
 
@@ -116,6 +305,18 @@ class PixelDiffConfig:
 
     两份内容相同但渲染引擎不同的 PDF，会产生大量 <100 像素的
     抗锯齿/字体微调假阳性。设为 0 恢复全部检出。
+    """
+
+    xor_dilate_radius: int = 3
+    """XOR 差异检测前对两幅二值图做膨胀的半径（像素）。
+
+    0 表示不膨胀，保持严格的逐像素异或。设为 1~3 时，先对模板和
+    扫描件二值图分别做同样大小的膨胀，再异或。这样可以把由扫描
+    模糊、抗锯齿、轻微配准错位导致的亚像素边缘差异吸收掉，同时
+    保留真正的内容增删（字符/印章/涂抹等大于膨胀核的实体变化）。
+
+    默认 3：在 300 DPI 文档比对中，3px 膨胀足以吸收扫描件与电子版
+    模板之间的边缘/抗锯齿噪声，而字符级修改仍远大于该尺度。
     """
 
     difference_classification_enabled: bool = True
@@ -379,6 +580,79 @@ class PixelDiffConfig:
     intersection. Higher values absorb appended/adjacent characters into the
     parent word's box (causing them to disappear as separate regions)."""
 
+    region_dedup_enabled: bool = True
+    """是否对最终差异区域做「重叠去重」。
+
+    当多个差异框彼此重叠时（典型：一个行级大框覆盖了一个或多个字符级小框），
+    保留面积较大者、舍弃面积较小者，使每个差异的覆盖面积尽量不重叠。判定以
+    「小框被大框覆盖的比例」（交集面积 / 小框矩形面积）是否达到
+    ``region_dedup_overlap_ratio`` 为准。关闭则保留全部（含重叠）差异框。
+    """
+
+    region_dedup_overlap_ratio: float = 0.5
+    """重叠去重的覆盖比例阈值（0~1）。
+
+    候选小框与某个已保留大框的交集面积占小框矩形面积的比例 ≥ 此值时，
+    视为被大框「覆盖」，丢弃小框。0.5 = 小框一半以上被大框覆盖即丢弃；
+    更小（如 0.3）会丢弃更多边缘重叠的小框，更大（如 0.8）则仅丢弃近乎
+    完全被包含的小框。"""
+
+    suppress_scan_render_residuals: bool = False
+    """是否抑制「扫描件渲染残差」假阳性。
+
+    针对无 PDF 文本层的图片输入（jpg/png 扫描件），其差异区域拿不到模板文本
+    （``template_text`` 为空），无法通过文本比对确认是否真修改。这类输入下，
+    「双向 modified（增删方向平衡，即原位置删除+新位置新增）+ 平移搜索能部分
+    重合字形」的区域，几乎都是扫描渲染/轻微错位造成的假阳性，而非真实增删。
+
+    开启后，同时满足以下条件的区域被判定为扫描渲染残差并移除：
+    1. ``template_text`` 为空（无文本层证据）；
+    2. ``change_type == "modified"``（增删方向平衡）；
+    3. 平移搜索最佳 IoU ≥ ``scan_render_suppress_min_iou``（字形能部分重合）；
+    4. ``risk_level != "HIGH"``（高风险不抑制，保守兜底）。
+
+    对 PDF（有文本层）输入不生效，因为其差异区域通常能取到 ``template_text``。
+    """
+
+    scan_render_suppress_min_iou: float = 0.3
+    """扫描渲染残差抑制的平移 IoU 下限（0~1）。
+
+    区域平移搜索最佳 IoU 达到此值即认为「字形能部分重合、是同一文字被渲染/错位
+    干扰」。0.3 = 字形有 30% 以上重合即抑制（覆盖 12e72ed2 这类 IoU 0.30~0.61
+    的渲染残差）；调大更保守（仅抑制高度重合的），调小更激进（可能误删真修改）。
+    """
+
+    suppress_table_line_residual_blocks: bool = True
+    """是否抑制「表格线错位主导的大块假阳性」。
+
+    扫描件的表格区存在进纸不匀的非线性形变，表格横线/竖线错位几个像素后，XOR
+    差异在表格区内产生大量细长线状残差，再被膨胀核粘连成一整片，形成覆盖整个
+    表格区的巨大差异框（面积可达十几万像素）。这类大框的内部差异主要由「细长
+    线状残差」（表格线错位）构成，而非块状文字修改。
+
+    开启后，同时满足以下条件的区域被判定为表格线错位假阳性并移除：
+    1. ``area ≥ table_line_residual_min_area``（只处理大框）；
+    2. 框内细长线残差占差异像素的比例 ≥ ``table_line_residual_min_ratio``
+       （表格线错位主导，而非块状文字）；
+    3. ``risk_level != "HIGH"``（高风险不抑制，保守兜底）。
+
+    区分依据（实测）：表格线错位大框线残差占比 ≈ 0.75，而真实大面积文字修改
+    （整段替换/位移）大框线残差占比仅 0.00~0.17，阈值 0.5 可干净区分、零误删。
+    """
+
+    table_line_residual_min_area: float = 20000.0
+    """表格线错位块抑制的面积下限（像素²）。低于此面积的小框不参与判定（小框
+    是单个字符/局部差异，不可能是「覆盖整片表格区」的错位块）。"""
+
+    table_line_residual_min_ratio: float = 0.5
+    """表格线错位块抑制的线残差占比阈值（0~1）。框内细长线残差占差异像素的
+    比例 ≥ 此值即判定为「表格线错位主导」。0.5 = 一半以上差异是表格线错位；
+    调小更激进、调大更保守。"""
+
+    table_line_residual_min_length: int = 40
+    """判定「细长线残差」的最小线长（像素）。形态学开运算核 (min_length,1) 与
+    (1,min_length) 检测长度 ≥ 此值的横线/竖线残差，短于它的文字笔画不计数。"""
+
     pdf_image_region_filter_enabled: bool = False
     """Ignore embedded image rectangles on text-bearing PDF pages."""
 
@@ -640,6 +914,35 @@ class PixelDiffConfig:
             raise ConfigurationError(
                 "configuration: ransac_reprojection_threshold must be positive"
             )
+        if self.homography_method not in {
+            "ransac", "usac_magsac", "usac_default", "usac_accurate", "usac_fast",
+        }:
+            raise ConfigurationError(
+                "configuration: homography_method must be one of "
+                "ransac/usac_magsac/usac_default/usac_accurate/usac_fast"
+            )
+        if self.ecc_motion_type not in {"translation", "euclidean", "affine", "homography"}:
+            raise ConfigurationError(
+                "configuration: ecc_motion_type must be one of "
+                "translation/euclidean/affine/homography"
+            )
+        if self.ecc_max_iterations <= 0:
+            raise ConfigurationError("configuration: ecc_max_iterations must be positive")
+        if self.ecc_epsilon <= 0:
+            raise ConfigurationError("configuration: ecc_epsilon must be positive")
+        if not 0 < self.scan_border_max_ratio < 0.5:
+            raise ConfigurationError(
+                "configuration: scan_border_max_ratio must be in (0, 0.5)"
+            )
+        if not 0 <= self.scan_border_gray_low < self.scan_border_gray_high <= 255:
+            raise ConfigurationError(
+                "configuration: scan_border_gray_low/high must satisfy "
+                "0 <= low < high <= 255"
+            )
+        if not 0 < self.scan_border_line_ratio <= 1:
+            raise ConfigurationError(
+                "configuration: scan_border_line_ratio must be in (0, 1]"
+            )
         if not 0 < self.alignment_feature_scale <= 1:
             raise ConfigurationError("configuration: alignment_feature_scale must be in (0, 1]")
         if not 0 <= self.alignment_feature_min_inlier_ratio <= 1:
@@ -654,6 +957,8 @@ class PixelDiffConfig:
             raise ConfigurationError("configuration: crop_margin must be non-negative")
         if self.min_diff_area < 0:
             raise ConfigurationError("configuration: min_diff_area must be non-negative")
+        if self.xor_dilate_radius < 0:
+            raise ConfigurationError("configuration: xor_dilate_radius must be non-negative")
         if not 0.5 <= self.difference_direction_ratio_threshold <= 1.0:
             raise ConfigurationError(
                 "configuration: difference_direction_ratio_threshold must be in [0.5, 1]"
