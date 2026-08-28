@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -163,14 +164,17 @@ def _find_libreoffice() -> str | None:
 def _render_pdf(pdf_path: Path, page: int, dpi: int) -> np.ndarray:
     """渲染 PDF 指定页为白底 BGR uint8 图像。
 
-    优先使用 pypdfium2（快速、轻量），
-    失败则回退到 PyMuPDF（功能全面但更重）。
+    优先使用 pypdfium2（快速、轻量），失败则回退到 PyMuPDF（功能全面但更重）。
+    注意：pypdfium2 的 libpdfium 在 PyInstaller 冻结态下多线程并行渲染会 SIGSEGV，
+    因此多线程报告模式通过 ``PD_DISABLE_PYPDFIUM2=1`` 禁用 pypdfium2，统一走
+    线程安全的 PyMuPDF。
     """
-    try:
-        return _render_pdf_pypdfium2(pdf_path, page, dpi)
-    except Exception:
-        logger.info("pypdfium2 failed, falling back to PyMuPDF")
-        return _render_pdf_pymupdf(pdf_path, page, dpi)
+    if os.environ.get("PD_DISABLE_PYPDFIUM2") != "1":
+        try:
+            return _render_pdf_pypdfium2(pdf_path, page, dpi)
+        except Exception:
+            logger.info("pypdfium2 failed, falling back to PyMuPDF")
+    return _render_pdf_pymupdf(pdf_path, page, dpi)
 
 
 def render_pdf_page_bgr(path: str | Path, page: int, dpi: int) -> np.ndarray:
@@ -183,20 +187,20 @@ def _render_pdf_pypdfium2(pdf_path: Path, page: int, dpi: int) -> np.ndarray:
     """使用 pypdfium2 渲染 PDF 页面。
 
     pypdfium2 直接调用 PDFium（Chromium 的 PDF 引擎），
-    渲染速度快、内存占用低，但 API 在非 Windows 平台有类型兼容问题。
+    渲染速度快、内存占用低。新版 API 用 ``page.render()``（旧版
+    ``PdfDocument.render`` 在 pypdfium2 5.x 已移除，导致一直静默
+    fallback 到 PyMuPDF）。
     """
     import pypdfium2
 
     scale = dpi / 72.0  # PDF 内部使用 72 DPI，需放大到目标 DPI
     pdf = pypdfium2.PdfDocument(str(pdf_path))
-    renderer: Any = pdf.render(
-        pypdfium2.PdfBitmap,
-        page_indices=[page],
-        scale=scale,
-    )
-    bitmap = cast(Any, renderer).to_numpy()
-    # pypdfium2 默认输出 RGBA，转 BGR 并补白底
-    return _rgba_to_bgr_white_bg(bitmap, scale)
+    bitmap = pdf[page].render(scale=scale)
+    arr = bitmap.to_numpy()
+    # pypdfium2 5.x 默认输出 RGB（3 通道）；若为 RGBA（4 通道）则补白底转 BGR
+    if arr.shape[2] == 4:
+        return _rgba_to_bgr_white_bg(arr, scale)
+    return cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
 
 
 def _render_pdf_pymupdf(pdf_path: Path, page: int, dpi: int) -> np.ndarray:

@@ -231,6 +231,9 @@ def main() -> int:
             # 用线程池并行（而非进程池）：OpenCV/numpy 的 C 扩展会释放 GIL，
             # 多线程同样能吃到多核；同时避免 PyInstaller 冻结态下进程池的
             # SemLock PermissionError 崩溃。
+            # pypdfium2 的 libpdfium 在 PyInstaller 冻结态下多线程渲染会 SIGSEGV，
+            # 故多线程报告模式禁用 pypdfium2，统一走线程安全的 PyMuPDF。
+            os.environ["PD_DISABLE_PYPDFIUM2"] = "1"
             with ThreadPoolExecutor(
                 max_workers=_effective_report_workers(
                     len(jobs), config.report_parallel_workers
